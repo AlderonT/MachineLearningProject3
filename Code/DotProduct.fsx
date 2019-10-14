@@ -36,6 +36,5 @@ printf "A = %A\n" testA
 printf "B = %A\n" testB
 printf "A dot B = %A\n" testDotProduct
 
-
 //--------------------------------------------------------------------------------------------------------------
 // END OF CODE
