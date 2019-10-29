@@ -29,14 +29,25 @@ namespace Project3
 
         // Create a Layer object to represent a layer within the neural network
         type Layer = 
-            abstract member nodes           : float32[]                         // Sequence to make up vectors
-            abstract member nodeCount       : int                               // Number of nodes in the layer
+            abstract member nodes                                   : float32[]                         // Sequence to make up vectors
+            abstract member nodeCount                               : int                               // Number of nodes in the layer
 
         // Create a ConnectionMatrix object to represent the connection matrix within the neural network
         type ConnectionMatrix = 
-            abstract member weights         : float32[]                         // Sequence of weights within the matrix
-            abstract member inputLayer      : Layer                             // Input layer
-            abstract member outputLayer     : Layer                             // Output layer
+            abstract member weights                                 : float32[]                         // Sequence of weights within the matrix
+            abstract member inputLayer                              : Layer                             // Input layer
+            abstract member outputLayer                             : Layer                             // Output layer
+
+        // Create a Network object to represent a neural network
+        type Network = 
+            abstract member layers                                  : Layer[]                           // Array of layers within the network
+            abstract member connections                             : ConnectionMatrix[]                // Array of connections within the network
+
+
+        // Create a Point object to represent a point within the data
+        type Point = 
+            abstract member realAttributes                          : float32[]                         // Sequence to make up vectors
+            abstract member categoricalAttributes                   : int                               // Number of nodes in the layer
 
 
 // FUNCTIONS
