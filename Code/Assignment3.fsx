@@ -29,9 +29,10 @@ namespace Project3
 // OBJECTS
 //--------------------------------------------------------------------------------------------------------------
         
+        // Create a Metadata object to distinguish real and categorical attributes by index
         type DataSetMetadata = 
-            abstract member getRealAttributeNodeIndex           : int -> int
-            abstract member getCategoricalAttributeNodeIndices  : int -> int[]
+            abstract member getRealAttributeNodeIndex           : int -> int            // Indices of the real attributes
+            abstract member getCategoricalAttributeNodeIndices  : int -> int[]          // Indices of the categorical attributes
         
         // Create a Layer object to represent a layer within the neural network
         type Layer = {
@@ -57,17 +58,18 @@ namespace Project3
             regressionValue                         : float option
             metadata                                : DataSetMetadata
         }
+
+            // Method for the Point object (not entirely functional but simple enough for application)
             with 
                 member this.distance p = //sqrt((Real distance)^2+(categorical distance)^2) //categorical distance = 1 if different value, or 0 if same value
                     (Seq.zip this.realAttributes p.realAttributes|> Seq.map (fun (a,b) -> a-b)|> Seq.sumBy (fun d -> d*d))
                     + (Seq.zip this.categoricalAttributes p.categoricalAttributes |> Seq.sumBy (fun (a,b)-> if a=b then 0.f else 1.f))
                     |>sqrt 
-        
-                    
-
+       
 
 // FUNCTIONS
 //--------------------------------------------------------------------------------------------------------------
+       
         //// How to get a dataset from a file
         let fetchTrainingSet filePath isCommaSeperated hasHeader =
             System.IO.File.ReadAllLines(filePath)                           // this give you back a set of line from the file (replace with your directory)
@@ -181,7 +183,7 @@ namespace Project3
         do
             let ds1 = (fullDataset @"D:\Fall2019\Machine Learning\Project 2\Data\abalone.data" (Some 0) None 2. true false) //filename classIndex regressionIndex pValue isCommaSeperated hasHeader
 
-            let filename = @"D:\Fall2019\Machine Learning\Project 2\Data\car.data" 
+            let filename = @"C:\Users\chris\OneDrive\Documents\CSCI447\MachineLearningProject3\Data\car.data" 
             let classIndex = Some 6 
             let regressionIndex = None
             let pValue = 2.

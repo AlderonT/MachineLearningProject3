@@ -4,7 +4,7 @@
 //  Assignment #3, Fall 2019
 //  Chris Major
 //
-//  Basic function to compute the activation functions of the neural network
+//  Functions for matrix multiplication using SIMD
 //  To be used in implementing the Backpropogation Neural Net
 //
 //--------------------------------------------------------------------------------------------------------------
@@ -14,31 +14,43 @@
 namespace Project3
 
     // Declare as a module
-    module ActivationFunction = 
+    module MatrixMultiply =
 
 
 // FUNCTIONS
 //--------------------------------------------------------------------------------------------------------------
 
-        // Function for the sigmoidal logistic function
-        let sigmoidLogisticFunction x = 
-            (1.0 / (1.0 + System.Math.E ** ( (float) -x)))
+        // Function to take the dot product of two vectors vecA and vecB
+        let matrixMultiply (matA : float32[]) (matB : float32[]) = 
 
-        // Function for the sigmoidal hyperbolic tangent
-        let sigmoidHyperbolicTangent x = 
-            System.Math.Tanh ((float) x)
-    
-        // Function for the inverse square root unit (ISRU)
-        let ISRU x = 
+            // Convert each float array into a "matrix"
+            // Column first, not row first
+            let realMatrixA =
+                matA
+                |> Seq.collect (fun (a0,a1,a2,a3) -> [a0;a1;a2;a3])
+                |> Seq.toArray
+
+            let realMatrixB =
+                matB
+                |> Seq.collect (fun (a0,a1,a2,a3) -> [a0;a1;a2;a3])
+                |> Seq.toArray
+
+
+            // The slow version
+
+
+
+            // Reformat matrices, refer to Program.fsx
+            // Pull apart and multiply
+            // There is no spoon
+
             1
 
 
-         // Make sigmoids SIMD [CHRIS]      
-
-// IMPLEMENTATIONS
+// IMPLEMENTATIONS AND TESTS
 //--------------------------------------------------------------------------------------------------------------
 
-    // none
+        // Test
 
 //--------------------------------------------------------------------------------------------------------------
 // END OF CODE
