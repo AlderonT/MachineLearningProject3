@@ -33,7 +33,10 @@ namespace Project3
         type DataSetMetadata = 
             abstract member getRealAttributeNodeIndex           : int -> int            // Indices of the real attributes
             abstract member getCategoricalAttributeNodeIndices  : int -> int[]          // Indices of the categorical attributes
-        
+            abstract member inputNodeCount                      : int                   // number of input nodes
+            abstract member outputNodeCount                     : int                   // number of output nodes
+            abstract member getClassByIndex                     : int -> string         // get the class associated with this node's index
+
         // Create a Layer object to represent a layer within the neural network
         type Layer = {
             nodes                                   : float32[]                         // Sequence to make up vectors
@@ -139,31 +142,46 @@ namespace Project3
                 |> Seq.map snd 
                 |> Seq.toArray
 
+            let classificationValues =
+                dataSet 
+                |> Seq.collect (fun row -> row|>Seq.mapi (fun i value-> i,value.ToLowerInvariant())) //value.ToLowerInvariant() forces the strings to all be lowercase
+                |> Seq.filter (fst >> ((=) classIndex)) //checks if the index is equal to the class index
+                |> Seq.map snd
+                |> Seq.distinct
+                |> Seq.sort
+                |> Seq.toArray                
+
             let metadata:DataSetMetadata = 
                 { new DataSetMetadata with
                     member _.getRealAttributeNodeIndex idx = if idx > realIndexes.Count then failwithf "index %d is outside of range of real attributes" idx else idx 
                     member _.getCategoricalAttributeNodeIndices idx = categoricalNodeIndices.[idx]
+                    member _.inputNodeCount = realIndexes.Count+(categoricalNodeIndices|> Seq.sumBy (fun x -> x.Length))
+                    member _.outputNodeCount = if regressionIndex <> -1 then 1 else classificationValues.Length
+                    member _.getClassByIndex idx = if idx<classificationValues.Length then classificationValues.[idx] else "UNKNOWN"
                 }
-            dataSet
-            |> Seq.map (fun p -> 
-                {
-                    cls = match classIndex with | -1 -> None | i -> Some p.[i]
-                    regressionValue = match regressionIndex with | -1 -> None | i -> (p.[i] |> System.Double.tryParse) //Needs to be able to parse ints into floats
-                    realAttributes = p |> Seq.filterWithIndex (fun i a -> realIndexes.Contains i) |>Seq.map System.Double.Parse |>Seq.map (fun x -> x|>float32)|> Seq.toArray
-                    categoricalAttributes = 
-                        p 
-                        |> Seq.chooseWithIndex (fun i a -> 
-                            match categoricalValues.TryFind i with
-                            | None -> None 
-                            | Some values -> values.TryFind a 
-                            )
-                        |> Seq.toArray
-                    metadata = metadata
-                }
-            ) |> Seq.toArray
-        
+            let dataSet = 
+                dataSet
+                |> Seq.map (fun p -> 
+                    {
+                        cls = match classIndex with | -1 -> None | i -> Some p.[i]
+                        regressionValue = match regressionIndex with | -1 -> None | i -> (p.[i] |> System.Double.tryParse) //Needs to be able to parse ints into floats
+                        realAttributes = p |> Seq.filterWithIndex (fun i a -> realIndexes.Contains i) |>Seq.map System.Double.Parse |>Seq.map (fun x -> x|>float32)|> Seq.toArray
+                        categoricalAttributes = 
+                            p 
+                            |> Seq.chooseWithIndex (fun i a -> 
+                                match categoricalValues.TryFind i with
+                                | None -> None 
+                                | Some values -> values.TryFind a 
+                                )
+                            |> Seq.toArray
+                        metadata = metadata
+                    }
+                ) |> Seq.toArray
+            dataSet,metadata
         let setInputLayerForPoint (n:Network) (p:Point) =
             let inputLayer = n.layers.[0]
+            for i = inputLayer.nodeCount to inputLayer.nodes.Length-1 do 
+                inputLayer.nodes.[i] <- 0.f
             p.realAttributes 
             |> Seq.iteri (fun idx attributeValue -> 
                 let nidx = p.metadata.getRealAttributeNodeIndex idx 
@@ -176,18 +194,99 @@ namespace Project3
                     inputLayer.nodes.[nidx] <- if nidx = attributeValue then 1.f else 0.f 
                 )
             )
-           
+
+        let createNetwork (metadata:DataSetMetadata) hiddenLayerSizes =    
+            let multipleOfFour i =  i+((4-(i%4))%4)
+            let allocatedInputNodeCount = multipleOfFour metadata.inputNodeCount    //adjusting to make the input length a multiple of 4
+            let allocatedOutputNodeCount = multipleOfFour metadata.outputNodeCount  //adjusting to make the input length a multiple of 4
+            
+            //let inputLayerRaw = Array.zeroCreate allocatedNodeCount (*(point.realAttributes.Length+(point.categoricalAttributes|>Seq.iteri(fun i _-> point.metadata.getCategoricalAttributeNodeIndices i)|>Seq.collect|>Seq.sum))*) (fun _ -> 0.f)
+            let layers = 
+                seq {
+                    yield {
+                        nodes = Array.zeroCreate allocatedInputNodeCount 
+                        nodeCount = metadata.inputNodeCount
+                    } 
+                    
+                    yield! 
+                        hiddenLayerSizes
+                        |>Array.map (fun size ->
+                            let allocatedSize = multipleOfFour size
+                            {
+                                nodes = Array.zeroCreate allocatedSize
+                                nodeCount = size
+                            }
+                        )
+                    
+                    yield {
+                        nodes = Array.zeroCreate allocatedOutputNodeCount
+                        nodeCount = metadata.outputNodeCount
+                    }
+
+                }
+                |>Seq.toArray
+
+            let createConnectionMatrix (inLayer,outLayer) = 
+                {
+                    weights = Array.zeroCreate (inLayer.nodes.Length*outLayer.nodes.Length)
+                    inputLayer = inLayer
+                    outputLayer = outLayer
+                }
+            
+            {
+                layers = layers 
+                connections = layers |> Seq.pairwise |> Seq.map createConnectionMatrix |> Seq.toArray
+            }
+        let initializeNetwork network = 
+            let rand = System.Random()
+            let initializeConnectionMatrix cMatrix = 
+                for i = 0 to cMatrix.weights.Length-1 do 
+                    cMatrix.weights.[i]<-rand.NextDouble()|>float32 //we can set these weights to be random values without tracking the phantom weights 
+                                                                    //because everything will work so long as the phantom input nodes are set to 0, 
+                                                                    //and the delta(phantom output nodes) are set to 0 on backprop
+                
+            network.connections |> Seq.iter initializeConnectionMatrix
+
+        let feedForward (metadata:DataSetMetadata) network point = 
+            let logistic (x:float32) = (1./(1.+System.Math.Exp(float -x) ))|>float32
+            let outputLayer = network.layers.[network.layers.Length-1]
+            setInputLayerForPoint network point
+            let runThroughConnection connection = 
+                for j = 0 to connection.outputLayer.nodeCount-1 do
+                    let mutable sum = 0.f
+                    for i = 0 to connection.inputLayer.nodeCount-1 do 
+                        let k = connection.inputLayer.nodes.Length * j+i 
+                        sum <- sum + connection.weights.[k]*connection.inputLayer.nodes.[i]
+                    connection.outputLayer.nodes.[j]<-logistic sum
+            network.connections
+            |>Seq.iter runThroughConnection
+            outputLayer.nodes
+            |> Seq.mapi (fun i v -> v,i)
+            |> Seq.max 
+            |> fun (v,i) -> v,metadata.getClassByIndex i
 
 // IMPLEMENTATIONS
 //--------------------------------------------------------------------------------------------------------------
         do
-            let ds1 = (fullDataset @"D:\Fall2019\Machine Learning\Project 2\Data\abalone.data" (Some 0) None 2. true false) //filename classIndex regressionIndex pValue isCommaSeperated hasHeader
+            let ds1,metadata = (fullDataset @"D:\Fall2019\Machine Learning\MachineLearningProject3\Data\car.data" (Some 6) None 2. true false) //filename classIndex regressionIndex pValue isCommaSeperated hasHeader
+            let network = createNetwork metadata [|10;10;10|]
+            initializeNetwork network 
+            feedForward metadata network ds1.[10]
+            ds1|> Array.map (fun p -> 
+                let cost,cls = feedForward metadata network p
+                cost,cls,p.cls
+            )
+            |> Array.countBy(fun (_,b,c)-> b,c)
 
-            let filename = @"C:\Users\chris\OneDrive\Documents\CSCI447\MachineLearningProject3\Data\car.data" 
-            let classIndex = Some 6 
-            let regressionIndex = None
-            let pValue = 2.
-            let isCommaSeperated,hasHeader = true,false
-            ()
+            network.layers.[network.layers.Length-1].nodes
+
+            //let filename = @"C:\Users\chris\OneDrive\Documents\CSCI447\MachineLearningProject3\Data\car.data" 
+            //let classIndex = Some 6 
+            //let regressionIndex = None
+            //let pValue = 2.
+            //let isCommaSeperated,hasHeader = true,false
+            //()
+            
+
 //--------------------------------------------------------------------------------------------------------------
 // END OF CODE
