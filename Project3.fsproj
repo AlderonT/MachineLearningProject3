@@ -6,7 +6,18 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <None Include="ActivationFunction.fsx" />
+    <None Include="Assignment3.fsx" />
+    <None Include="DotProduct.fsx" />
+    <None Include="FeedforwardNet.fsx" />
+    <None Include="MatrixMultiply.fsx" />
+    <None Include="Network.fsx" />
+    <None Include="Project2.fsx" />
+    <None Include="RBFNet.fsx" />
+    <None Include="tools.fsx" />
     <Compile Include="Program.fs" />
   </ItemGroup>
+
+  <ItemGroup />
 
 </Project>
