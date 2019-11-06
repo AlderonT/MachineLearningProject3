@@ -10,7 +10,7 @@
     <None Include="Assignment3.fsx" />
     <None Include="DotProduct.fsx" />
     <None Include="FeedforwardNet.fsx" />
-    <None Include="MatrixMultiply.fsx" />
+    <None Include="MatrixMultiply.fs" />
     <None Include="Network.fsx" />
     <None Include="Project2.fsx" />
     <None Include="RBFNet.fsx" />
