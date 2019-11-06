@@ -200,7 +200,6 @@ namespace Project3
             let allocatedInputNodeCount = multipleOfFour metadata.inputNodeCount    //adjusting to make the input length a multiple of 4
             let allocatedOutputNodeCount = multipleOfFour metadata.outputNodeCount  //adjusting to make the input length a multiple of 4
             
-            //let inputLayerRaw = Array.zeroCreate allocatedNodeCount (*(point.realAttributes.Length+(point.categoricalAttributes|>Seq.iteri(fun i _-> point.metadata.getCategoricalAttributeNodeIndices i)|>Seq.collect|>Seq.sum))*) (fun _ -> 0.f)
             let layers = 
                 seq {
                     yield {
@@ -243,14 +242,13 @@ namespace Project3
                 for i = 0 to cMatrix.weights.Length-1 do 
                     cMatrix.weights.[i]<-rand.NextDouble()|>float32 //we can set these weights to be random values without tracking the phantom weights 
                                                                     //because everything will work so long as the phantom input nodes are set to 0, 
-                                                                    //and the delta(phantom output nodes) are set to 0 on backprop
-                
+                                                                    //and the delta(phantom output nodes) are set to 0 on backprop 
             network.connections |> Seq.iter initializeConnectionMatrix
 
         let feedForward (metadata:DataSetMetadata) network point = 
-            let logistic (x:float32) = (1./(1.+System.Math.Exp(float -x) ))|>float32
-            let outputLayer = network.layers.[network.layers.Length-1]
-            setInputLayerForPoint network point
+            let logistic (x:float32) = (1./(1.+System.Math.Exp(float -x) ))|>float32    //Logistic Fn
+            let outputLayer = network.layers.[network.layers.Length-1]                  //output layer def
+            setInputLayerForPoint network point                                         //set the input layer to the point
             let runThroughConnection connection = 
                 for j = 0 to connection.outputLayer.nodeCount-1 do
                     let mutable sum = 0.f
@@ -264,6 +262,9 @@ namespace Project3
             |> Seq.mapi (fun i v -> v,i)
             |> Seq.max 
             |> fun (v,i) -> v,metadata.getClassByIndex i
+        
+        let backprop (metadata:DataSetMetadata) network point =
+            1
 
 // IMPLEMENTATIONS
 //--------------------------------------------------------------------------------------------------------------
@@ -279,14 +280,7 @@ namespace Project3
             |> Array.countBy(fun (_,b,c)-> b,c)
 
             network.layers.[network.layers.Length-1].nodes
-
-            //let filename = @"C:\Users\chris\OneDrive\Documents\CSCI447\MachineLearningProject3\Data\car.data" 
-            //let classIndex = Some 6 
-            //let regressionIndex = None
-            //let pValue = 2.
-            //let isCommaSeperated,hasHeader = true,false
-            //()
-            
+           
 
 //--------------------------------------------------------------------------------------------------------------
 // END OF CODE
