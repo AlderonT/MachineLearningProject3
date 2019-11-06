@@ -4,7 +4,7 @@
 //  Assignment #3, Fall 2019
 //  Chris Major
 //
-//  Functions for matrix multiplication using SIMD
+//  Functions for matrix multiplication with and without SIMD
 //  To be used in implementing the Backpropogation Neural Net
 //
 //--------------------------------------------------------------------------------------------------------------
@@ -27,82 +27,67 @@ namespace Project3
 //--------------------------------------------------------------------------------------------------------------
 
         // Function to multiply two matrices matA and matB and store the result in matF
-        let matrixMultiply (matA : float32[]) (matB : float32[]) (matF : float32[]) = 
+        // Assume that:
+        //      - vecA is a size N input vector
+        //      - vecF is a size M output vector
+        //      - matB is a N x M matrix
+        let matrixMultiply (vecA : float32[]) (matB : float32[]) (vecF : float32[]) = 
 
-            // Convert each float array into a "matrix"
-            // Column first, not row first
-            let realMatrixA =
-                matA
-                |> Seq.collect (fun (a0,a1,a2,a3) -> [a0;a1;a2;a3])
-                |> Seq.toArray
+            // Perform the multiplication for each value of vecF (m)
+            vecF
+            |> Array.mapi (fun m _  -> 
+                
+                // Create mutable value for summation
+                let mutable sum = 0.f
 
-            let realMatrixB =
-                matB
-                |> Seq.collect (fun (a0,a1,a2,a3) -> [a0;a1;a2;a3])
-                |> Seq.toArray
+                // Iterate through each value of vecA (n)
+                for n = 0 to vecA.Length - 1 do
 
+                    // Grab the index of the matB that is being multiplied (matIndex)
+                    let matIndex = ( ( (vecA.Length) * m) + n)
 
-            // The slow version
+                    // Multiply and add to previous value
+                    sum <- sum + (vecA.[n] * matB.[matIndex])
 
+                // Assign sum to vecF at x
+                sum
 
-
-            // Reformat matrices, refer to Program.fsx
-            // Pull apart and multiply
-            // There is no spoon
-
-            1
+            )
 
 
         // Function to multiply two matrices matA and matB with SIMD commands and store the result in matF
-        let matrixMultiplySIMD (matA : float32[]) (matB : float32[]) (matF : float32[]) = 
+        // Assume that:
+        //      - vecA is a size N input vector
+        //      - vecF is a size M output vector
+        //      - matB is a N x M matrix
+        // [NOTE] This is not fully working yet. For testing, use matrixMultiply!
+        let matrixmultiplysimd (veca : float32[]) (matb : float32[]) (vecf : float32[]) = 
 
-            // If Fused Multiply and Add (FMA) is not on the system, throw error
-            if Fma.IsSupported |> not then failwithf "Ed ... ward ... (You don't have the FMA instructions)"
+            // if fused multiply and add (fma) is not on the system, throw error
+            if fma.issupported |> not then failwithf "ed ... ward ... (you don't have the fma instructions)"
 
-            // Fix the values of the input arguments
-            use pmatA = fixed matA
-            use pmatB = fixed matB
-            use pmatF = fixed matF
+            // Perform the multiplication for each value of vecF (m)
+            vecF
+            |> Array.mapi (fun m _  -> 
+                
+                // Create mutable value for summation
+                let mutable sum = 0.f
 
-            // Create mutable values to be used in the matrix multiplication
-            let mutable iA = 0
-            let mutable iB = 0
-            let mutable iF = 0
+                // Iterate through each value of vecA (n)
+                for n = 0 to vecA.Length - 1 do
 
-            while io < outputValues.Length do // we assume that outputValues is a multiple of 4
-                ii <- 0 // reset ii to beginning of the input array for the next set of outputs
-                let mutable acc = Vector128.Zero // clear acc to Zero
-                while ii < inputValues.Length do // we assume that inputValues is a multiple of 4
-                    // fetch a,b,c,d from input array
-                    let inputVec = Ssse3.LoadVector128(NativeInterop.NativePtr.add pinputs ii)
-                    // shuffle's control byte is interpreted as the index of the element to replicate in each position
-                    // 0b00000000uy is the binary literal where we tell the instruction to take the first element and replicate it in the 4 positions
-                    // the original Sse Shuffle instruction is weird, because it uses the first argument for the first two destination positions and the second arg for the last two
-                    // This means you call Shuffle with the same register twice to get the shuffle we want
-                    // likewise 0b00011011 would invert the ordering of the elements since we are putting the last element in pos 0, 3rd element into 1, 2nd to 2 and first into 3
-                    // DONT FORGET to put the uy on the end of the number to indicate this is a byte
-                    // Sse.Shuffle(inputVec,inputVec,0b00000000uy) -> a,a,a,a
-                    let aWeights = Ssse3.LoadVector128(NativeInterop.NativePtr.add pweights iw) // load weights
-                    let aVec = Sse.Shuffle(inputVec,inputVec,0b00000000uy) // get a,a,a,a
-                    acc <- Fma.MultiplyAdd(aVec,aWeights,acc) // we now apply a against the a weights for 0 thru 3 outputs
+                    // 
+
+                    // Multiply and add to previous value
+                    let aWeights = Ssse3.LoadVector128(NativeInterop.NativePtr.add pweights iw)     // Load weights
+                    let aVec = Sse.Shuffle(inputVec,inputVec,0b00000000uy)                          // Get a,a,a,a
+                    acc <- Fma.MultiplyAdd(aVec,aWeights,acc)                                       // We now apply a against the a weights for 0 thru 3 outputs
                     iw <- iw+4
-                    let bWeights = Ssse3.LoadVector128(NativeInterop.NativePtr.add pweights iw)
-                    let bVec = Sse.Shuffle(inputVec,inputVec,0b01010101uy) // get b,b,b,b
-                    acc <- Fma.MultiplyAdd(bVec,bWeights,acc) // we now apply b against the b weights for 0 thru 3 outputs
-                    iw <- iw+4
-                    let cWeights = Ssse3.LoadVector128(NativeInterop.NativePtr.add pweights iw)
-                    let cVec = Sse.Shuffle(inputVec,inputVec,0b10101010uy) // get c,c,c,c
-                    acc <- Fma.MultiplyAdd(cVec,cWeights,acc) // we now apply c against the c weights for 0 thru 3 outputs
-                    iw <- iw+4
-                    let dWeights = Ssse3.LoadVector128(NativeInterop.NativePtr.add pweights iw)
-                    let dVec = Sse.Shuffle(inputVec,inputVec,0b11111111uy) // get d,d,d,d
-                    acc <- Fma.MultiplyAdd(dVec,dWeights,acc) // we now apply d against the d weights for 0 thru 3 outputs
-                    iw <- iw+4
-                    ii <- ii+4 // move to next chunk of input's e,f,g,h etc.
-                // we know at this point we have processed all the weights for the current output so we can store
-                Ssse3.Store(NativeInterop.NativePtr.add poutputs io,acc)
-                io <- io+4 // move to the next 4 outputs nodes
-            // we're done, the output array should have all the calculated weights
+
+                // Assign sum to vecF at x
+                sum
+
+            )
 
 
 
@@ -111,11 +96,18 @@ namespace Project3
 //--------------------------------------------------------------------------------------------------------------
 
         // Test
-        let x = sum128 data
-        X.computeOutput X.weights X.inputValues X.outputValues
-        printfn "inputs: %A" X.inputValues
-        printfn "outputs: %A" X.outputValues
-        printfn "%d" x
+        let testVecA = [|2.f; 1.f; 3.f|]
+        let testMatB = [|1.f; 2.f; 3.f; 4.f; 5.f; 6.f; 7.f; 8.f; 9.f|]
+        let testVecF = Array.init 3 (fun i-> i|>float32)
+
+        matrixMultiply testVecA testMatB testVecF
+
+        printfn "%A" testVecA
+        printfn "%A" testMatB
+        printfn "%A" testVecF
+
+
+
 
 
 //--------------------------------------------------------------------------------------------------------------
