@@ -56,126 +56,90 @@ namespace Project3
 
 
         // Function to multiply two matrices matA and matB with SIMD commands and store the result in matF
-<<<<<<< HEAD
         // Assume that:
         //      - vecA is a size N input vector
         //      - vecF is a size M output vector
         //      - matB is a N x M matrix
         // [NOTE] This is not fully working yet. For testing, use matrixMultiply!
-        let matrixmultiplysimd (veca : float32[]) (matb : float32[]) (vecf : float32[]) = 
-
-            // if fused multiply and add (fma) is not on the system, throw error
-            if fma.issupported |> not then failwithf "ed ... ward ... (you don't have the fma instructions)"
-
-            // Perform the multiplication for each value of vecF (m)
-            vecF
-            |> Array.mapi (fun m _  -> 
-                
-                // Create mutable value for summation
-                let mutable sum = 0.f
-
-                // Iterate through each value of vecA (n)
-                for n = 0 to vecA.Length - 1 do
-
-                    // 
-
-                    // Multiply and add to previous value
-                    let aWeights = Ssse3.LoadVector128(NativeInterop.NativePtr.add pweights iw)     // Load weights
-                    let aVec = Sse.Shuffle(inputVec,inputVec,0b00000000uy)                          // Get a,a,a,a
-                    acc <- Fma.MultiplyAdd(aVec,aWeights,acc)                                       // We now apply a against the a weights for 0 thru 3 outputs
-                    iw <- iw+4
-
-                // Assign sum to vecF at x
-                sum
-
-            )
-=======
-        let matrixMultiplySIMD (weights : float32[]) (inputValues : float32[]) (outputValues : float32[]) = 
+        let matrixMultiplySIMD (veca : float32[]) (matb : float32[]) (vecf : float32[]) = 
 
             // If Fused Multiply and Add (FMA) is not on the system, throw error
             if Fma.IsSupported |> not then failwithf "Ed ... ward ... (You don't have the FMA instructions)"
 
-            // Fix the values of the input arguments
-            use pweights = fixed weights
-            use pinputs = fixed inputValues
-            use poutputs = fixed outputValues
+            // Fix the values of the input arguments so the array addresses are pinned.
+            use pB = fixed vecB
+            use pA = fixed vecA
+            use pF = fixed vecF
 
             // Create mutable values to be used in the matrix multiplication
-            let mutable iw = 0
-            let mutable ii = 0
-            let mutable io = 0
+            let mutable iB = 0
+            let mutable iA = 0
+            let mutable iF = 0
 
-            // Assuming that outputValues is a multiple of 4, loop
-            while io < outputValues.Length do 
+            // Assume that outputValues is a multiple of 4
+            while iF < vecF.Length do 
 
-                // reset ii to beginning of the input array for the next set of outputs
-                ii <- 0 
+                // Reset iA (vecA counter) to beginning of the input array (vecA) for the next set of outputs (vecF)
+                iA <- 0 
 
-                // clear acc to Zero
+                // Clear accumulator to zero
                 let mutable acc = Vector128.Zero 
 
-                 // Assuming the inputValues is a multiple of 4, loop for its length
-                while ii < inputValues.Length do
+                // Iterate through the input vector
+                // Assume that vecA is a multiple of 4
+                while iA < vecA.Length do 
 
-                    // fetch a,b,c,d from input array
-                    let inputVec = Ssse3.LoadVector128(NativeInterop.NativePtr.add pinputs ii)
+                    // Fetch a, b, c, and d from vecA
+                    let inputVec = Ssse3.LoadVector128(NativeInterop.NativePtr.add pA iA)
 
-                    // shuffle's control byte is interpreted as the index of the element to replicate in each position
-                    // 0b00000000uy is the binary literal where we tell the instruction to take the first element and replicate it in the 4 positions
-                    // the original Sse Shuffle instruction is weird, because it uses the first argument for the first two destination positions and the second arg for the last two
-                    // This means you call Shuffle with the same register twice to get the shuffle we want
-                    // likewise 0b00011011 would invert the ordering of the elements since we are putting the last element in pos 0, 3rd element into 1, 2nd to 2 and first into 3
-                    // DONT FORGET to put the uy on the end of the number to indicate this is a byte
-                    // Sse.Shuffle(inputVec,inputVec,0b00000000uy) -> a,a,a,a
+                    // Perform intrinsics on a
+                    let aWeights = Ssse3.LoadVector128(NativeInterop.NativePtr.add pB iB)               // Load weights
+                    let aVec = Sse.Shuffle(inputVec, inputVec, 0b00000000uy)                            // Get a, a, a, a
+                    acc <- Fma.MultiplyAdd(aVec, aWeights, acc)                                         // Apply a against the a weights for 0 to 3 outputs
+                    iB <- iB + 4                                                                        // Increment vecB counter by 4
 
-                    let aWeights = Ssse3.LoadVector128(NativeInterop.NativePtr.add pweights iw)     // load weights
-                    let aVec = Sse.Shuffle(inputVec,inputVec,0b00000000uy)                          // get a,a,a,a
-                    acc <- Fma.MultiplyAdd(aVec,aWeights,acc)                                       // we now apply a against the a weights for 0 thru 3 outputs
-                    iw <- iw+4
+                    // Perform intrinsics on b
+                    let bWeights = Ssse3.LoadVector128(NativeInterop.NativePtr.add pB iB)               // Load weights
+                    let bVec = Sse.Shuffle(inputVec, inputVec, 0b01010101uy)                            // Get b, b, b, b
+                    acc <- Fma.MultiplyAdd(bVec, bWeights, acc)                                         // Apply b against the b weights for 0 to 3 outputs
+                    iB <- iB + 4                                                                        // Increment vecB counter by 4
 
-                    let bWeights = Ssse3.LoadVector128(NativeInterop.NativePtr.add pweights iw)
-                    let bVec = Sse.Shuffle(inputVec,inputVec,0b01010101uy)                          // get b,b,b,b
-                    acc <- Fma.MultiplyAdd(bVec,bWeights,acc)                                       // we now apply b against the b weights for 0 thru 3 outputs
-                    iw <- iw+4
+                    // Perform intrinsics on c
+                    let cWeights = Ssse3.LoadVector128(NativeInterop.NativePtr.add pB iB)               // Load weights
+                    let cVec = Sse.Shuffle(inputVec,inputVec,0b10101010uy)                              // Get c, c, c, c
+                    acc <- Fma.MultiplyAdd(cVec, cWeights, acc)                                         // Apply c against the c weights for 0 to 3 outputs    
+                    iB <- iB + 4                                                                        // Increment vecB counter by 4
 
-                    let cWeights = Ssse3.LoadVector128(NativeInterop.NativePtr.add pweights iw)
-                    let cVec = Sse.Shuffle(inputVec,inputVec,0b10101010uy)                          // get c,c,c,c
-                    acc <- Fma.MultiplyAdd(cVec,cWeights,acc)                                       // we now apply c against the c weights for 0 thru 3 outputs
-                    iw <- iw+4
+                    // Perform intrinsics on d
+                    let dWeights = Ssse3.LoadVector128(NativeInterop.NativePtr.add pB iB)               // Load weights
+                    let dVec = Sse.Shuffle(inputVec, inputVec,0b11111111uy)                             // Get d, d, d, d
+                    acc <- Fma.MultiplyAdd(dVec, dWeights, acc)                                         // Apply d against the d weights for 0 to 3 outputs            
+                    iB <- iB + 4                                                                        // Increment vecB counter by 4
 
-                    let dWeights = Ssse3.LoadVector128(NativeInterop.NativePtr.add pweights iw)
-                    let dVec = Sse.Shuffle(inputVec,inputVec,0b11111111uy)                          // get d,d,d,d
-                    acc <- Fma.MultiplyAdd(dVec,dWeights,acc)                                       // we now apply d against the d weights for 0 thru 3 outputs
-                    iw <- iw+4
+                // Store all values for the current output of vecF
+                Ssse3.Store(NativeInterop.NativePtr.add pF iF, acc)
 
-                    ii <- ii+4                                                                      // move to next chunk of input's e,f,g,h etc.
-
-                // we know at this point we have processed all the weights for the current output so we can store
-                Ssse3.Store(NativeInterop.NativePtr.add poutputs io,acc)
-
-                // move to the next 4 outputs nodes
-                io <- io+4 
->>>>>>> acefd6f8a7c1536b9bb712c38f6fd50b7add4fe7
-
-
+                // Increment output vector (vecF) counter by 4
+                iF <- iF + 4 
 
 
 // IMPLEMENTATIONS AND TESTS
 //--------------------------------------------------------------------------------------------------------------
 
-        // Test
+        // Create test vectors
         let testVecA = [|2.f; 1.f; 3.f|]
         let testMatB = [|1.f; 2.f; 3.f; 4.f; 5.f; 6.f; 7.f; 8.f; 9.f|]
-        let testVecF = Array.init 3 (fun i-> i|>float32)
+        let testVecFRegular = Array.init 3 (fun i-> i|>float32)
+        let testVecFSIMD = Array.init 3 (fun i-> i|>float32)
 
-        matrixMultiply testVecA testMatB testVecF
+        // Perform test multiplications
+        matrixMultiply testVecA testMatB testVecFRegular
+        matrixMultiplySIMD testVecA testMatB testVecFSIMD
 
+        // Print results
         printfn "%A" testVecA
         printfn "%A" testMatB
         printfn "%A" testVecF
-
-
-
 
 
 //--------------------------------------------------------------------------------------------------------------
