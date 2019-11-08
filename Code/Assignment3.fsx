@@ -14,9 +14,11 @@ namespace Project3
 
     // Load the file names from the same folder
     #load "tools.fsx"
+    #load "GaussianFunction.fsx"
     
     // Open the modules
     open Tools
+    open GaussianFunction
 
     // Declare as a module
     module Assignment3 = 
@@ -376,9 +378,8 @@ namespace Project3
                         // Iterate through the columns
                         let k = connection.inputLayer.nodes.Length * j + i 
 
-                        // Add to the summation value
-                        // [TODO] Modify with Gaussian function
-                        //sum <- sum + connection.weights.[k] * connection.inputLayer.nodes.[i]
+                        // Add to the Gaussian function value
+                        sum <- gaussianFunction connection.inputLayer.nodes connection.weights 0.25f
 
                     // Store the values in the output layer            
                     connection.outputLayer.nodes.[j]<-logistic sum
