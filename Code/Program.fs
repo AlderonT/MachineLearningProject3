@@ -344,7 +344,7 @@ module rec Assignment3 =
             |> fun x-> x/(trainingSet.Length|> float32)
         finally
             sw.Stop()
-            printfn "Train network: %f (s)" sw.Elapsed.TotalSeconds
+            //printfn "Train network: %f (s)" sw.Elapsed.TotalSeconds
         
     let runNetwork (metadata:DataSetMetadata) (network: Network) (point:Point) =
         let expectedOutputs = Array.zeroCreate metadata.outputNodeCount
@@ -354,12 +354,13 @@ module rec Assignment3 =
         cls,activationValue,err 
             
     let trainNetworkToErr epsilon learningRate (metadata:DataSetMetadata) (network: Network) (trainingSet:Point[]) =
-        let rec loop count=
+        let rec loop count (lastErrs:float32[]) (lastErridx:int)=
             let err = trainNetwork  learningRate metadata network trainingSet
-            printfn "Run %d: %f" count err
+            lastErrs.[lastErridx] <- err 
+            if count%10 = 0 then printfn "Run %d: %f" count err 
             if err<= epsilon then ()
-            else loop (count+1)
-        loop 0
+            else loop (count+1) lastErrs (if lastErridx+1 > lastErrs.Length-1 then 0 else lastErridx+1) 
+        loop 0 (Array.zeroCreate 100) 0
 
     //
     let getRandomFolds k (dataSet:'a seq) = //k is the number of slices dataset is the unsliced dataset
@@ -391,21 +392,35 @@ open Assignment3
 
 [<EntryPoint>]
 let main argv =
-    let ds1,metadata = (fullDataset @"D:\Fall2019\Machine Learning\MachineLearningProject3\Data\car.data" (Some 6) None 2. true false) //filename classIndex regressionIndex pValue isCommaSeperated hasHeader
-    let network = createNetwork metadata [|20;20;20|]
-    initializeNetwork network 
-    let [|trainingSet;testSet|] = getRandomFolds 2 ds1|> Array.map Seq.toArray
-    //let trainingSet=trainingSet.[0..0]
-    trainNetworkToErr 0.001f 2.f metadata network trainingSet
-    let MSE =
-        testSet
-        |> Seq.map ( fun p ->
-            runNetwork metadata network p 
-            |> fun (_,_,err) -> err*err
-        )
-        |>Seq.average
-    printfn "MSE: %f" MSE
+    let dsmd1 = (fullDataset @"D:\Fall2019\Machine Learning\Project3\Data\abalone.data" (Some 0) None 2. true false) //filename classIndex regressionIndex pValue isCommaSeperated hasHeader
+    let dsmd2 = (fullDataset @"D:\Fall2019\Machine Learning\Project3\Data\car.data" (Some 6) None 2. true false)
+    let dsmd3 = (fullDataset @"D:\Fall2019\Machine Learning\Project3\Data\forestfires.csv" None (Some 12) 2. true true)
+    let dsmd4 = (fullDataset @"D:\Fall2019\Machine Learning\Project3\Data\machine.data" None (Some 9) 2. true false )
+    let dsmd5 = (fullDataset @"D:\Fall2019\Machine Learning\Project3\Data\segmentation.data" (Some 0) None 2. true true)
+    let dsmd6 = (fullDataset @"D:\Fall2019\Machine Learning\Project3\Data\winequality-red.csv" None (Some 9) 2. false true)
+    let dsmd7 = (fullDataset @"D:\Fall2019\Machine Learning\Project3\Data\winequality-white.csv" None (Some 11) 2. false true)
+    let datasets = [|dsmd1;dsmd2;dsmd3;dsmd4;dsmd5;dsmd6;dsmd7|]
+    //let ds1,metadata = (fullDataset @"D:\Fall2019\Machine Learning\MachineLearningProject3\Data\car.data" (Some 6) None 2. true false) //filename classIndex regressionIndex pValue isCommaSeperated hasHeader
+    
+    datasets
+    |>Seq.iter (fun (ds,metadata)->
+        let network = createNetwork metadata [|10;10;10|]
+        initializeNetwork network 
+        let [|trainingSet;testSet|] = getRandomFolds 2 ds|> Array.map Seq.toArray
+        //let trainingSet=trainingSet.[0..0]
+        trainNetworkToErr 0.01f 2.f metadata network trainingSet
+        let MSE =
+            testSet
+            |> Seq.map ( fun p ->
+                runNetwork metadata network p 
+                |> fun (_,_,err) -> err*err
+            )
+            |>Seq.average
+        printfn "MSE: %f" MSE
+    )
     0
+
+    //Networks: 10x10x10, 5x5x10, and 8x4x7
     
 //--------------------------------------------------------------------------------------------------------------
 // END OF CODE
