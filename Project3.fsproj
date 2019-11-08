@@ -15,7 +15,7 @@
     <None Include="Project2.fsx" />
     <None Include="RBFNet.fsx" />
     <None Include="tools.fsx" />
-    <Compile Include="Program.fs" />
+    <Compile Include="example.fsx" />
   </ItemGroup>
 
   <ItemGroup />
