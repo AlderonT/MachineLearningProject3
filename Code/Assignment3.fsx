@@ -355,10 +355,48 @@ namespace Project3
             |> fun (v,i) -> v, metadata.getClassByIndex i   // Return as the classification/regression value
         
 
-        // Function for backpropogation
+        // Function for the Radial Basis Function
         //------------------------------------------------------------------------------------------------------
-        let backprop (metadata:DataSetMetadata) network point =
-            1
+        let RBFNetwork (metadata:DataSetMetadata) network point = 
+            
+            let logistic (x:float32) = (1./(1.+System.Math.Exp(float -x) )) |> float32      // Logistic Function
+            
+            let outputLayer = network.layers.[network.layers.Length-1]                      // Output layer def
+            
+            setInputLayerForPoint network point                                             // Set the input layer to the point
+            
+            // Connect all of the points in the network
+            let runThroughConnection connection = 
+
+                // Iterate through the layers
+                for j = 0 to connection.outputLayer.nodeCount - 1 do
+
+                    // Create mutable value to hold summation
+                    let mutable sum = 0.f
+
+                    // Iterate through the input layer rows
+                    for i = 0 to connection.inputLayer.nodeCount - 1 do 
+
+                        // Iterate through the columns
+                        let k = connection.inputLayer.nodes.Length * j + i 
+
+                        // Add to the summation value
+                        // [TODO] Modify with Gaussian function
+                        //sum <- sum + connection.weights.[k] * connection.inputLayer.nodes.[i]
+
+                    // Store the values in the output layer            
+                    connection.outputLayer.nodes.[j]<-logistic sum
+            
+            // Return network connection values
+            network.connections
+
+            |>Seq.iter runThroughConnection                 // Iterate through the sequence
+            
+            // Run through the output layer nodes
+            outputLayer.nodes           
+            |> Seq.mapi (fun i v -> v,i)                    // Map each node by index
+            |> Seq.max                                      // Grab the maximum
+            |> fun (v,i) -> v, metadata.getClassByIndex i   // Return as the classification/regression value
 
 // IMPLEMENTATIONS
 //--------------------------------------------------------------------------------------------------------------
