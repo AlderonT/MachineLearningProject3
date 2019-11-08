@@ -303,7 +303,14 @@ namespace Project3
                     let delta = -learningRate*inputs.[i]*outputDeltas.[j]
                     weights.[ij] <- weight + delta
         
-        let backprop learningRate (metadata:DataSetMetadata) (network: Network) (expectedOutputs:float32[]) =
+        let computeError (network:Network) (expectedoutput:float32[])=
+            let outLayer = network.outLayer
+            let mutable errSum = 0.f
+            for i = 0 to outLayer.nodeCount do 
+                errSum <- let d = outLayer.nodes.[i] - expectedoutput.[i] in d*d+errSum
+            errSum/2.f
+
+        let backprop learningRate (network: Network) (expectedOutputs:float32[]) =
             let outputLayer = network.outLayer 
             outputDeltas outputLayer.nodes expectedOutputs outputLayer.deltas
             for j = network.connections.Length-1 to 1 do    
@@ -314,7 +321,29 @@ namespace Project3
                 updateWeights learningRate connectionMatrix.weights inLayer.nodes outlayer.deltas
             let connectionMatrix = network.connections.[0]
             updateWeights learningRate connectionMatrix.weights connectionMatrix.inputLayer.nodes connectionMatrix.outputLayer.deltas
+        
+        let trainNetwork learningRate (metadata:DataSetMetadata) (network: Network) (trainingSet:Point[]) = 
+            let expectedOutputs = Array.zeroCreate metadata.outputNodeCount
+            trainingSet
+            |> Seq.mapi (fun i p->
+                metadata.fillExpectedOutput p expectedOutputs
+                let activationValue,cls = feedForward metadata network p
+                let totalErr = computeError network expectedOutputs
+                printfn "Error for point %d: %f " i totalErr
+                backprop learningRate network expectedOutputs
+                totalErr
+            )
+            |> Seq.sum
+            |> fun x-> x/(trainingSet.Length|> float32)
+        
+        let runNetwork (metadata:DataSetMetadata) (network: Network) (point:Point) =
+            let expectedOutputs = Array.zeroCreate metadata.outputNodeCount
+            metadata.fillExpectedOutput p expectedOutputs
+            let activationValue,cls = feedForward metadata network point
+            let err = computeError network expectedOutputs
+            cls,activationValue,err 
             
+
 // IMPLEMENTATIONS
 //--------------------------------------------------------------------------------------------------------------
         do
