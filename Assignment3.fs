@@ -343,6 +343,13 @@ namespace Project3
             let err = computeError network expectedOutputs
             cls,activationValue,err 
             
+        let trainNetworkToErr epsilon learningRate (metadata:DataSetMetadata) (network: Network) (trainingSet:Point[]) =
+            let rec loop count=
+                let err = trainNetwork  learningRate metadata network trainingSet
+                printfn "Run %d: %f" count err
+                if err<= epsilon then ()
+                else loop (count+1)
+            loop 0
 
 // IMPLEMENTATIONS
 //--------------------------------------------------------------------------------------------------------------
