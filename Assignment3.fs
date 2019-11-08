@@ -323,18 +323,23 @@ namespace Project3
             updateWeights learningRate connectionMatrix.weights connectionMatrix.inputLayer.nodes connectionMatrix.outputLayer.deltas
         
         let trainNetwork learningRate (metadata:DataSetMetadata) (network: Network) (trainingSet:Point[]) = 
-            let expectedOutputs = Array.zeroCreate metadata.outputNodeCount
-            trainingSet
-            |> Seq.mapi (fun i p->
-                metadata.fillExpectedOutput p expectedOutputs
-                let activationValue,cls = feedForward metadata network p
-                let totalErr = computeError network expectedOutputs
-                printfn "Error for point %d: %f " i totalErr
-                backprop learningRate network expectedOutputs
-                totalErr
-            )
-            |> Seq.sum
-            |> fun x-> x/(trainingSet.Length|> float32)
+            let sw = System.Diagnostics.Stopwatch.StartNew()
+            try 
+                let expectedOutputs = Array.zeroCreate metadata.outputNodeCount
+                trainingSet
+                |> Seq.mapi (fun i p->
+                    metadata.fillExpectedOutput p expectedOutputs
+                    let activationValue,cls = feedForward metadata network p
+                    let totalErr = computeError network expectedOutputs
+                    printfn "Error for point %d: %f " i totalErr
+                    backprop learningRate network expectedOutputs
+                    totalErr
+                )
+                |> Seq.sum
+                |> fun x-> x/(trainingSet.Length|> float32)
+            finally
+                sw.Stop()
+                printfn "Train network: %f (s)" sw.Elapsed.TotalSeconds
         
         let runNetwork (metadata:DataSetMetadata) (network: Network) (point:Point) =
             let expectedOutputs = Array.zeroCreate metadata.outputNodeCount
@@ -350,6 +355,28 @@ namespace Project3
                 if err<= epsilon then ()
                 else loop (count+1)
             loop 0
+
+        //
+        let getRandomFolds k (dataSet:'a seq) = //k is the number of slices dataset is the unsliced dataset
+            let rnd = System.Random()           //init randomnumbergenerator
+            let data = ResizeArray(dataSet)     //convert our dataset to a resizable array
+            let getRandomElement() =            //Get a random element out of data
+                if data.Count <= 0 then None    //if our data is empty return nothing
+                else
+                    let idx = rnd.Next(0,data.Count)    //get a random index between 0 and |data|
+                    let e = data.[idx]                  //get the element e from idx
+                    data.RemoveAt(idx) |> ignore        //remove the element e from data
+                    Some e                              //return e
+            let folds = Array.init k (fun _ -> Seq.empty)       //resultant folds array init as an empty seq
+            let rec generate  j =                               //recursively generate an array that increments on j (think like a while loop)
+                match getRandomElement() with                   //match the random element with:
+                | None -> folds                                 //if there is nothing there then return folds
+                | Some e ->                                     // if there is something there
+                    let s = folds.[j%k]                         // get the (j%k)th fold  in the array
+                    folds.[j%k] <- seq { yield! s; yield e }    //create a new seqence containing the old sequence (at j%k) and the new element e, and put it back into slot (j%k)
+                    generate (j+1)                              //increment j and run again
+            generate 0                                          //calls the generate function
+            
 
 // IMPLEMENTATIONS
 //--------------------------------------------------------------------------------------------------------------
