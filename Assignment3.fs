@@ -23,7 +23,7 @@ namespace Project3
     open Tools
 
     // Declare as a module
-    module Assignment3 = 
+    module rec Assignment3 = 
 
 
 // OBJECTS
@@ -36,11 +36,13 @@ namespace Project3
             abstract member inputNodeCount                      : int                   // number of input nodes
             abstract member outputNodeCount                     : int                   // number of output nodes
             abstract member getClassByIndex                     : int -> string         // get the class associated with this node's index
+            abstract member fillExpectedOutput                  : Point -> float32[] -> unit    //assigned the expected output of Point to the float32[]
 
         // Create a Layer object to represent a layer within the neural network
         type Layer = {
             nodes                                   : float32[]                         // Sequence to make up vectors
             nodeCount                               : int                               // Number of nodes in the layer
+            deltas                                  : float32[]                         // sacrificing space for speed
         }
         // Create a ConnectionMatrix object to represent the connection matrix within the neural network
         type ConnectionMatrix = {
@@ -53,6 +55,10 @@ namespace Project3
             layers                                  : Layer[]                           // Array of layers within the network
             connections                             : ConnectionMatrix[]                // Array of connections within the network
         }
+            with 
+                member this.outLayer = this.layers.[this.layers.Length-1]
+                member this.inLayer = this.layers.[0]
+
         // Create a Point object to represent a point within the data
         type Point = {
             realAttributes                          : float32[]                         // the floating point values for the real points
@@ -158,6 +164,12 @@ namespace Project3
                     member _.inputNodeCount = realIndexes.Count+(categoricalNodeIndices|> Seq.sumBy (fun x -> x.Length))
                     member _.outputNodeCount = if regressionIndex <> -1 then 1 else classificationValues.Length
                     member _.getClassByIndex idx = if idx<classificationValues.Length then classificationValues.[idx] else "UNKNOWN"
+                    member _.fillExpectedOutput point expectedOutputs = 
+                        if regressionIndex<>-1 then expectedOutputs.[0] = point.regressionValue
+                        else    
+                            for i = 0 to classificationValues.Length-1 do 
+                                if point.cls.Value.ToLowerInvariant() = classificationValues.[i] then expectedOutputs.[i] <- 1.f
+                                else expectedOutputs.[i] <- 0.f
                 }
             let dataSet = 
                 dataSet
@@ -205,6 +217,7 @@ namespace Project3
                     yield {
                         nodes = Array.zeroCreate allocatedInputNodeCount 
                         nodeCount = metadata.inputNodeCount
+                        deltas = Array.zeroCreate allocatedInputNodeCount 
                     } 
                     
                     yield! 
@@ -214,12 +227,14 @@ namespace Project3
                             {
                                 nodes = Array.zeroCreate allocatedSize
                                 nodeCount = size
+                                deltas = Array.zeroCreate allocatedSize
                             }
                         )
                     
                     yield {
                         nodes = Array.zeroCreate allocatedOutputNodeCount
                         nodeCount = metadata.outputNodeCount
+                        deltas = Array.zeroCreate allocatedOutputNodeCount
                     }
 
                 }
@@ -255,7 +270,10 @@ namespace Project3
                     for i = 0 to connection.inputLayer.nodeCount-1 do 
                         let k = connection.inputLayer.nodes.Length * j+i 
                         sum <- sum + connection.weights.[k]*connection.inputLayer.nodes.[i]
-                    connection.outputLayer.nodes.[j]<-logistic sum
+                    if j < connection.outputLayer.nodeCount then 
+                        connection.outputLayer.nodes.[j]<-logistic sum
+                    else 
+                        connection.outputLayer.nodes.[j]<- 0.f
             network.connections
             |>Seq.iter runThroughConnection
             outputLayer.nodes
@@ -263,9 +281,40 @@ namespace Project3
             |> Seq.max 
             |> fun (v,i) -> v,metadata.getClassByIndex i
         
-        let backprop (metadata:DataSetMetadata) network point =
+        let outputDeltas (outputs:float32[]) (expected:float32[]) (deltas:float32[]) =
+            Seq.zip outputs expected
+            |> Seq.iteri (fun i (o,t) ->
+                deltas.[i] <- (o-t)*o*(1.f-o)       //(output - target)*output*(1-output)
+            )
+        let innerDeltas (weights:float32[]) (inputs:float32[]) (outputDeltas:float32[]) (deltas:float32[]) =
+            for j = 0 to inputs.Length-1 do
+                let mutable sum = 0.f
+                for l = 0 to outputDeltas.Length-1 do
+                    let jl = l*outputDeltas.Length+j
+                    let weight = weights.[jl]
+                    sum <- outputDeltas.[l]*weight + sum
+                deltas.[j] <- sum*inputs.[j]*(1.f-inputs.[j])
+           
+        let updateWeights learningRate (weights:float32[]) (inputs:float32[]) (outputDeltas:float32[]) =
+            for j = 0 to outputDeltas.Length-1 do
+                for i = 0 to inputs.Length-1 do
+                    let ij = j*outputDeltas.Length+i
+                    let weight = weights.[ij]
+                    let delta = -learningRate*inputs.[i]*outputDeltas.[j]
+                    weights.[ij] <- weight + delta
+        
+        let backprop learningRate (metadata:DataSetMetadata) (network: Network) (expectedOutputs:float32[]) =
+            let outputLayer = network.outLayer 
+            outputDeltas outputLayer.nodes expectedOutputs outputLayer.deltas
+            for j = network.connections.Length-1 to 1 do    
+                let connectionMatrix = network.connections.[j]
+                let inLayer = connectionMatrix.inputLayer
+                let outlayer = connectionMatrix.outputLayer
+                innerDeltas connectionMatrix.weights inLayer.nodes outlayer.deltas inLayer.deltas
+                updateWeights learningRate connectionMatrix.weights inLayer.nodes outlayer.deltas
+            let connectionMatrix = network.connections.[0]
+            updateWeights learningRate connectionMatrix.weights connectionMatrix.inputLayer.nodes connectionMatrix.outputLayer.deltas
             
-
 // IMPLEMENTATIONS
 //--------------------------------------------------------------------------------------------------------------
         do
