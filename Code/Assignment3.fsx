@@ -13,13 +13,9 @@
 namespace Project3
 
     // Load the file names from the same folder
-    #load "FeedforwardNet.fsx"
-    #load "RBFNet.fsx"
     #load "tools.fsx"
     
     // Open the modules
-    open FeedforwardNet
-    open RBFNet
     open Tools
 
     // Declare as a module
