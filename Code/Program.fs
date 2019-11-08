@@ -404,7 +404,7 @@ let main argv =
     //let ds1,metadata = (fullDataset @"D:\Fall2019\Machine Learning\MachineLearningProject3\Data\car.data" (Some 6) None 2. true false) //filename classIndex regressionIndex pValue isCommaSeperated hasHeader
     
     datasets
-    |>Seq.iter (fun (ds,metadata)->
+    |>Seq.map (fun (ds,metadata)->
         let network = createNetwork metadata [|10;10;10|]
         initializeNetwork network 
         let [|trainingSet;testSet|] = getRandomFolds 2 ds|> Array.map Seq.toArray
@@ -417,8 +417,9 @@ let main argv =
                 |> fun (_,_,err) -> err*err
             )
             |>Seq.average
-        printfn "MSE: %f" MSE
+        MSE
     )
+    |> Seq.iter (fun x-> printfn "MSE: %f" x)
     0
 
     //Networks: 10x10x10, 5x5x10, and 8x4x7
