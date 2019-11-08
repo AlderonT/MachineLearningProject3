@@ -356,10 +356,11 @@ module rec Assignment3 =
     let trainNetworkToErr epsilon learningRate (metadata:DataSetMetadata) (network: Network) (trainingSet:Point[]) =
         let rec loop count (lastErrs:float32[]) (lastErridx:int)=
             let err = trainNetwork  learningRate metadata network trainingSet
-            lastErrs.[lastErridx] <- err 
             if count%10 = 0 then printfn "Run %d: %f" count err 
-            if err<= epsilon then ()
-            else loop (count+1) lastErrs (if lastErridx+1 > lastErrs.Length-1 then 0 else lastErridx+1) 
+            if err<= epsilon || err = lastErrs.[lastErridx] then ()
+            else 
+                lastErrs.[lastErridx] <- err 
+                loop (count+1) lastErrs (if lastErridx+1 > lastErrs.Length-1 then 0 else lastErridx+1) 
         loop 0 (Array.zeroCreate 100) 0
 
     //
