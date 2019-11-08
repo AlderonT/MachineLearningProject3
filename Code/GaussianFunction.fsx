@@ -26,10 +26,10 @@ namespace Project3
             // Calculate the distance of the two points
             let distanceX = 
                 Seq.zip x xPrime
-                |> Seq.sumBy (fun (a,b) -> (a - b) ** 2.0f)
+                |> Seq.sumBy (fun (a,b) -> (a - b) * (a - b) )
 
             // Return the exponential of the square Euclidean distance over the sigma term
-            System.Math.E ** (-1.0f * ( distanceX ** 2.0f) * (2.0f * (sigma ** 2.0f)))
+            System.Math.Exp(float (-1.0f * (distanceX * distanceX) * (2.0f * sigma * sigma))) |> float32
 
 
 // IMPLEMENTATIONS

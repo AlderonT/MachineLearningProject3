@@ -1,0 +1,6 @@
+CONTRIBUTIONS
+
+Chris Major: matrix functions, gaussian functions, logistic functions
+Farshina Nazrul-Shimin: data preprocessing, momentum
+Tysen Radovich: radial basis function neural network
+Allen Simpson: feedforward neural network, backpropogation

@@ -73,7 +73,9 @@ namespace Project3
 // FUNCTIONS
 //--------------------------------------------------------------------------------------------------------------
        
-        //// How to get a dataset from a file
+
+        // Function to get the training set from a file
+        //------------------------------------------------------------------------------------------------------
         let fetchTrainingSet filePath isCommaSeperated hasHeader =
             System.IO.File.ReadAllLines(filePath)                           // this give you back a set of line from the file (replace with your directory)
             |> Seq.map (fun v -> v.Trim())                                  // trim the sequence
@@ -84,185 +86,277 @@ namespace Project3
                 )   
             |> (if hasHeader then Seq.skip 1 else id)                       // separate headers from data
             |> Seq.map (fun line -> line.Split(if isCommaSeperated then ',' else ';') |> Array.map (fun value -> value.Trim() |> System.String.Intern)) // this give you an array of elements from the comma seperated fields. We trim to make sure that any white space is removed.
-    
-        // Write out functions
         
-        ////GET THE DATASET
+
+        // Function to get the full dataset from a file
+        //------------------------------------------------------------------------------------------------------
         let fullDataset filename (classIndex:int option) (regressionIndex : int option) (pValue:float) isCommaSeperated hasHeader= 
-            let classIndex,regressionIndex = 
+            
+            // Set up the class and regression indices
+            let classIndex, regressionIndex = 
                 match classIndex,regressionIndex with 
-                | None,None     -> -1,-1
-                | None,Some a   -> -1,a 
-                | Some a,None   -> a,-1
-                | Some a,Some b -> a,b
+                | None, None     -> -1, -1
+                | None, Some a   -> -1, a 
+                | Some a, None   -> a, -1
+                | Some a, Some b -> a, b
+
+            // Fetch the training set from the file
             let dataSet = fetchTrainingSet filename isCommaSeperated hasHeader
             
-            ////Need to comment this!
-            let columns = dataSet|> Seq.transpose|> Seq.toArray 
-            let realIndexes,categoricalIndexes = 
-                columns
-                |>Seq.mapi (fun i c -> i,c)
-                |>Seq.filter (fun (i,_) -> i<>regressionIndex && i<> classIndex)
-                |>Seq.map (fun (i,c) ->
+            // Grab the columns
+            let columns = dataSet |> Seq.transpose |> Seq.toArray 
+
+            // Divide the real and categorical data indexes
+            let realIndexes, categoricalIndexes = 
                 
+                // Run through the columns
+                columns
+                |> Seq.mapi (fun i c -> i,c)                                                // Map each column by indices
+                |> Seq.filter (fun (i,_) -> i<>regressionIndex && i<> classIndex)           // Filter classification and regression indexs
+                |> Seq.map (fun (i,c) ->                                                    // Map through each item
+                
+                    // Run through index i
                     i,
                     (c
-                     |> Seq.exists (fun v -> 
+                     |> Seq.exists (fun v ->                                                // If a value exists ...
                         v
-                        |>System.Double.tryParse 
-                        |> Option.isNone
+                        |> System.Double.tryParse                                           // System try statement
+                        |> Option.isNone                                                    // Parse data
                         )
                     )
                 )
-                |>Seq.toArray
-                |>Array.partition snd
-                |>(fun (c,r) -> (r|> Seq.map fst |>Set.ofSeq),(c|>Seq.map fst |>Set.ofSeq))
+                |>Seq.toArray                                                               // Convert sequence
+                |>Array.partition snd                                                       // Partition the sequence
+                |>(fun (c,r) -> (r|> Seq.map fst |>Set.ofSeq),(c|>Seq.map fst |>Set.ofSeq)) // Re-map sequence
             
+            // Grab the categorical values
             let categoricalValues = 
+
+                // Run through the data set
                 dataSet 
-                |> Seq.collect (fun row -> row|>Seq.mapi (fun i value-> i,value.ToLowerInvariant())) //value.ToLowerInvariant() forces the strings to all be lowercase
-                |> Seq.filter (fst >> categoricalIndexes.Contains)
-                |> Seq.distinct
-                |> Seq.groupBy fst
-                |> Seq.map (fun (catIdx,s)->
-                    let values = 
+                |> Seq.collect (fun row -> row|>Seq.mapi (fun i value-> i,value.ToLowerInvariant()))    // value.ToLowerInvariant() forces the strings to all be lowercase
+                |> Seq.filter (fst >> categoricalIndexes.Contains)                                      // Filter the features by categorical        
+                |> Seq.distinct                                                                         // Distinguish these features    
+                |> Seq.groupBy fst                                                                      // Group       
+                |> Seq.map (fun (catIdx, s) ->                                                          // Map category indices        
+                    
+                    // Define the categorical values
+                    let values =  
+                            
+                        // Run through s
                         s 
-                        |> Seq.map snd
-                        |> Seq.sort
-                        |> Seq.mapi (fun n v -> (v,n))
-                        |> Map.ofSeq
-                    catIdx,values
+                        |> Seq.map snd                                                                  // Map the sequence
+                        |> Seq.sort                                                                     // Sort by index
+                        |> Seq.mapi (fun n v -> (v,n))                                                  // Map by index
+                        |> Map.ofSeq                                                                    // Create map
+
+                    // Tuple of values
+                    catIdx, values                                                                       
                 )
-                |> Map.ofSeq
+                |> Map.ofSeq                                                                            // Complete mapping
 
+            // Grab the categorical node indices
             let categoricalNodeIndices = 
+
+                // Run through the categorical values
                 categoricalValues 
-                |> Seq.map (function KeyValue(k,v)-> (k,Array.init v.Count id))
-                |> Seq.sortBy fst 
-                |> Seq.map snd 
-                |> Seq.toArray
+                |> Seq.map (function KeyValue(k, v)-> (k,Array.init v.Count id))                        // Map values in KeyValues of array and count values
+                |> Seq.sortBy fst                                                                       // Sort through tuples
+                |> Seq.map snd                                                                          // Map through sequence to tuple values
+                |> Seq.toArray                                                                          // Convert to array   
 
+            // Grab the classification values
             let classificationValues =
-                dataSet 
-                |> Seq.collect (fun row -> row|>Seq.mapi (fun i value-> i,value.ToLowerInvariant())) //value.ToLowerInvariant() forces the strings to all be lowercase
-                |> Seq.filter (fst >> ((=) classIndex)) //checks if the index is equal to the class index
-                |> Seq.map snd
-                |> Seq.distinct
-                |> Seq.sort
-                |> Seq.toArray                
 
+                // Run through the dataset
+                dataSet 
+                |> Seq.collect (fun row -> row|>Seq.mapi (fun i value-> i,value.ToLowerInvariant()))    // value.ToLowerInvariant() forces the strings to all be lowercase
+                |> Seq.filter (fst >> ((=) classIndex))                                                 // Check if the index is equal to the class index
+                |> Seq.map snd                                                                          // Map through sequence to tuple values
+                |> Seq.distinct                                                                         // Remove any duplicates
+                |> Seq.sort                                                                             // Sort the contents
+                |> Seq.toArray                                                                          // Convert the sequence to an array        
+
+            // Create a metadata object to contain the real and categorical data for each point
             let metadata:DataSetMetadata = 
                 { new DataSetMetadata with
-                    member _.getRealAttributeNodeIndex idx = if idx > realIndexes.Count then failwithf "index %d is outside of range of real attributes" idx else idx 
-                    member _.getCategoricalAttributeNodeIndices idx = categoricalNodeIndices.[idx]
-                    member _.inputNodeCount = realIndexes.Count+(categoricalNodeIndices|> Seq.sumBy (fun x -> x.Length))
-                    member _.outputNodeCount = if regressionIndex <> -1 then 1 else classificationValues.Length
-                    member _.getClassByIndex idx = if idx<classificationValues.Length then classificationValues.[idx] else "UNKNOWN"
+                    member _.getRealAttributeNodeIndex idx = if idx > realIndexes.Count then failwithf "index %d is outside of range of real attributes" idx else idx   // Real
+                    member _.getCategoricalAttributeNodeIndices idx = categoricalNodeIndices.[idx]                                                                      // Categorical
+                    member _.inputNodeCount = realIndexes.Count+(categoricalNodeIndices|> Seq.sumBy (fun x -> x.Length))                                                // Input Node Count
+                    member _.outputNodeCount = if regressionIndex <> -1 then 1 else classificationValues.Length                                                         // Output Node Count
+                    member _.getClassByIndex idx = if idx<classificationValues.Length then classificationValues.[idx] else "UNKNOWN"                                    // Class by Index
                 }
+
+            // Create a dataset value
             let dataSet = 
+
+                // Run through the dataset
                 dataSet
-                |> Seq.map (fun p -> 
+                |> Seq.map (fun p ->                                                                                        // Map the dataset to value p
                     {
-                        cls = match classIndex with | -1 -> None | i -> Some p.[i]
-                        regressionValue = match regressionIndex with | -1 -> None | i -> (p.[i] |> System.Double.tryParse) //Needs to be able to parse ints into floats
-                        realAttributes = p |> Seq.filterWithIndex (fun i a -> realIndexes.Contains i) |>Seq.map System.Double.Parse |>Seq.map (fun x -> x|>float32)|> Seq.toArray
+                        cls = match classIndex with | -1 -> None | i -> Some p.[i]                                          // Match the class with the index value
+                        regressionValue = match regressionIndex with | -1 -> None | i -> (p.[i] |> System.Double.tryParse)  // Needs to be able to parse ints into floats
+                        realAttributes = p |> Seq.filterWithIndex (fun i a -> realIndexes.Contains i) |>Seq.map System.Double.Parse |>Seq.map (fun x -> x|>float32)|> Seq.toArray   // Parse real attributes into values
+                        
+                        // Run through the categorical attributes
                         categoricalAttributes = 
+
+                            // Run through each categorical value
                             p 
-                            |> Seq.chooseWithIndex (fun i a -> 
-                                match categoricalValues.TryFind i with
-                                | None -> None 
-                                | Some values -> values.TryFind a 
+                            |> Seq.chooseWithIndex (fun i a ->                  // Select from sequence by index
+                                match categoricalValues.TryFind i with          // Find categorical values based on indices
+                                | None -> None                                  // If none, leave alone
+                                | Some values -> values.TryFind a               // If there is a value, try in sequence
                                 )
-                            |> Seq.toArray
+                            |> Seq.toArray                                      // Convert to array
+
+                        // Assign to the object metadata
                         metadata = metadata
                     }
                 ) |> Seq.toArray
-            dataSet,metadata
+
+            // Return a tuple of the dataset and metadata
+            dataSet, metadata
+
+
+        // Function to set the input layer for a point
+        //------------------------------------------------------------------------------------------------------
         let setInputLayerForPoint (n:Network) (p:Point) =
-            let inputLayer = n.layers.[0]
-            for i = inputLayer.nodeCount to inputLayer.nodes.Length-1 do 
-                inputLayer.nodes.[i] <- 0.f
+            let inputLayer = n.layers.[0]                                                       // Grab the first layer as input
+            
+            // Iterate through the layers                                                       
+            for i = inputLayer.nodeCount to inputLayer.nodes.Length - 1 do                           
+                inputLayer.nodes.[i] <- 0.f                                                     // Set to zeroes
+            
+            // Run through the real attributes of the point
             p.realAttributes 
-            |> Seq.iteri (fun idx attributeValue -> 
-                let nidx = p.metadata.getRealAttributeNodeIndex idx 
-                inputLayer.nodes.[nidx] <- attributeValue 
+            |> Seq.iteri (fun idx attributeValue ->                                             // Iterate
+                let nidx = p.metadata.getRealAttributeNodeIndex idx                             // Grab the real attribute index from the metadata
+                inputLayer.nodes.[nidx] <- attributeValue                                       // Assign attribute value to input node    
             )
+
+            // Run through the categorical attributes of the point
             p.categoricalAttributes 
-            |> Seq.iteri (fun idx attributeValue -> 
-                let nidxs = p.metadata.getCategoricalAttributeNodeIndices idx
+            |> Seq.iteri (fun idx attributeValue ->                                             // Iterate
+                let nidxs = p.metadata.getCategoricalAttributeNodeIndices idx                   // Grab the categorical attribute index from the metadata
                 nidxs |> Seq.iter (fun nidx ->
-                    inputLayer.nodes.[nidx] <- if nidx = attributeValue then 1.f else 0.f 
+                    inputLayer.nodes.[nidx] <- if nidx = attributeValue then 1.f else 0.f       // Assign categorical value if it exists
                 )
             )
 
+
+        // Function to create a neural network
+        //------------------------------------------------------------------------------------------------------        
         let createNetwork (metadata:DataSetMetadata) hiddenLayerSizes =    
-            let multipleOfFour i =  i+((4-(i%4))%4)
-            let allocatedInputNodeCount = multipleOfFour metadata.inputNodeCount    //adjusting to make the input length a multiple of 4
-            let allocatedOutputNodeCount = multipleOfFour metadata.outputNodeCount  //adjusting to make the input length a multiple of 4
             
+            let multipleOfFour i =  i+((4-(i%4))%4)                                     // Create value wtih multiple of four    
+            let allocatedInputNodeCount = multipleOfFour metadata.inputNodeCount        // Adjusting to make the input length a multiple of 4
+            let allocatedOutputNodeCount = multipleOfFour metadata.outputNodeCount      // Adjusting to make the input length a multiple of 4
+            
+            // Craete a layers sequence
             let layers = 
+                
                 seq {
-                    yield {
-                        nodes = Array.zeroCreate allocatedInputNodeCount 
-                        nodeCount = metadata.inputNodeCount
+                    yield {                                                             // Add single item to sequence
+                        nodes = Array.zeroCreate allocatedInputNodeCount                // Create empty array of nodes
+                        nodeCount = metadata.inputNodeCount                             // Store number of nodes for input
                     } 
                     
-                    yield! 
-                        hiddenLayerSizes
-                        |>Array.map (fun size ->
-                            let allocatedSize = multipleOfFour size
+                    yield!                                                              // Add all items to sequence
+                        
+                        // Run through the hidden layer size values
+                        hiddenLayerSizes                                                                       
+                        |> Array.map (fun size ->                                       // Map the hidden layer by size
+                            let allocatedSize = multipleOfFour size                     // Define a variable of size
                             {
-                                nodes = Array.zeroCreate allocatedSize
-                                nodeCount = size
+                                nodes = Array.zeroCreate allocatedSize                  // Create an empty array of nodes
+                                nodeCount = size                                        // Set value of the node count
                             }
                         )
                     
-                    yield {
-                        nodes = Array.zeroCreate allocatedOutputNodeCount
-                        nodeCount = metadata.outputNodeCount
+                    yield {                                                             // Add single item to sequence
+                        nodes = Array.zeroCreate allocatedOutputNodeCount               // Create empty array of nodes
+                        nodeCount = metadata.outputNodeCount                            // Store number of nodes for output    
                     }
 
                 }
-                |>Seq.toArray
+                |>Seq.toArray                                                           // Convert sequence to array
 
-            let createConnectionMatrix (inLayer,outLayer) = 
+            // Create a connection matrix with the input and output layers
+            let createConnectionMatrix (inLayer, outLayer) = 
                 {
-                    weights = Array.zeroCreate (inLayer.nodes.Length*outLayer.nodes.Length)
-                    inputLayer = inLayer
-                    outputLayer = outLayer
+                    weights = Array.zeroCreate (inLayer.nodes.Length*outLayer.nodes.Length)             // Create an array of zeroes for the weights
+                    inputLayer = inLayer                                                                // Create the input layer
+                    outputLayer = outLayer                                                              // Create the output layer
                 }
             
             {
-                layers = layers 
-                connections = layers |> Seq.pairwise |> Seq.map createConnectionMatrix |> Seq.toArray
+                layers = layers                                                                         // Create the intermediate layers
+                connections = layers |> Seq.pairwise |> Seq.map createConnectionMatrix |> Seq.toArray   // Determine the number of layers
             }
-        let initializeNetwork network = 
+
+
+        // Function to initialize the neural network
+        //------------------------------------------------------------------------------------------------------
+        let initializeNetwork network =
+        
+            // Reference random value generator
             let rand = System.Random()
+            
+            // Initialize the connection matrix
             let initializeConnectionMatrix cMatrix = 
                 for i = 0 to cMatrix.weights.Length-1 do 
-                    cMatrix.weights.[i]<-rand.NextDouble()|>float32 //we can set these weights to be random values without tracking the phantom weights 
-                                                                    //because everything will work so long as the phantom input nodes are set to 0, 
-                                                                    //and the delta(phantom output nodes) are set to 0 on backprop 
+                    cMatrix.weights.[i]<-rand.NextDouble()|>float32                         // We can set these weights to be random values without tracking the phantom weights 
+                                                                                            // because everything will work so long as the phantom input nodes are set to 0, 
+                                                                                            // and the delta(phantom output nodes) are set to 0 on backprop 
             network.connections |> Seq.iter initializeConnectionMatrix
 
+
+        // Function for the Feedforward Neural Network
+        //------------------------------------------------------------------------------------------------------
         let feedForward (metadata:DataSetMetadata) network point = 
-            let logistic (x:float32) = (1./(1.+System.Math.Exp(float -x) ))|>float32    //Logistic Fn
-            let outputLayer = network.layers.[network.layers.Length-1]                  //output layer def
-            setInputLayerForPoint network point                                         //set the input layer to the point
+            
+            let logistic (x:float32) = (1./(1.+System.Math.Exp(float -x) )) |> float32      // Logistic Function
+            
+            let outputLayer = network.layers.[network.layers.Length-1]                      // Output layer def
+            
+            setInputLayerForPoint network point                                             // Set the input layer to the point
+            
+            // Connect all of the points in the network
             let runThroughConnection connection = 
-                for j = 0 to connection.outputLayer.nodeCount-1 do
+
+                // Iterate through the layers
+                for j = 0 to connection.outputLayer.nodeCount - 1 do
+
+                    // Create mutable value to hold summation
                     let mutable sum = 0.f
-                    for i = 0 to connection.inputLayer.nodeCount-1 do 
-                        let k = connection.inputLayer.nodes.Length * j+i 
-                        sum <- sum + connection.weights.[k]*connection.inputLayer.nodes.[i]
+
+                    // Iterate through the input layer rows
+                    for i = 0 to connection.inputLayer.nodeCount - 1 do 
+
+                        // Iterate through the columns
+                        let k = connection.inputLayer.nodes.Length * j + i 
+
+                        // Add to the summation value
+                        sum <- sum + connection.weights.[k] * connection.inputLayer.nodes.[i]
+
+                    // Store the values in the output layer            
                     connection.outputLayer.nodes.[j]<-logistic sum
+            
+            // Return network connection values
             network.connections
-            |>Seq.iter runThroughConnection
-            outputLayer.nodes
-            |> Seq.mapi (fun i v -> v,i)
-            |> Seq.max 
-            |> fun (v,i) -> v,metadata.getClassByIndex i
+
+            |>Seq.iter runThroughConnection                 // Iterate through the sequence
+            
+            // Run through the output layer nodes
+            outputLayer.nodes           
+            |> Seq.mapi (fun i v -> v,i)                    // Map each node by index
+            |> Seq.max                                      // Grab the maximum
+            |> fun (v,i) -> v, metadata.getClassByIndex i   // Return as the classification/regression value
         
+
+        // Function for backpropogation
+        //------------------------------------------------------------------------------------------------------
         let backprop (metadata:DataSetMetadata) network point =
             1
 
