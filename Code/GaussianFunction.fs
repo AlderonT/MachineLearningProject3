@@ -11,7 +11,7 @@
 
 // MODULES
 //--------------------------------------------------------------------------------------------------------------
-namespace Project3
+namespace Gaussian
 
     // Declare as a module
     module GaussianFunction = 

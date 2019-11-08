@@ -22,6 +22,7 @@
 //open RBFNet
 open Tools
 open Tools.Extensions
+open Gaussian.GaussianFunction
 
 // Declare as a module
 module rec Assignment3 = 
@@ -38,6 +39,7 @@ module rec Assignment3 =
         abstract member outputNodeCount                     : int                   // number of output nodes
         abstract member getClassByIndex                     : int -> string         // get the class associated with this node's index
         abstract member fillExpectedOutput                  : Point -> float32[] -> unit    //assigned the expected output of Point to the float32[]
+        abstract member isClassification                    : bool                  //stores if this dataset is classification
 
     // Create a Layer object to represent a layer within the neural network
     type Layer = {
@@ -175,6 +177,7 @@ module rec Assignment3 =
                         for i = 0 to classificationValues.Length-1 do 
                             if point.cls.Value.ToLowerInvariant() = classificationValues.[i] then expectedOutputs.[i] <- 1.f
                             else expectedOutputs.[i] <- 0.f
+                member _.isClassification = if regressionIndex <> -1 then false else true
             }
         let dataSet = 
             dataSet
@@ -269,18 +272,21 @@ module rec Assignment3 =
         let logistic (x:float32) = (1./(1.+System.Math.Exp(float -x) ))|>float32    //Logistic Fn
         let outputLayer = network.layers.[network.layers.Length-1]                  //output layer def
         setInputLayerForPoint network point                                         //set the input layer to the point
-        let runThroughConnection connection = 
+        let runThroughConnection i connection  = 
             for j = 0 to connection.outputLayer.nodeCount-1 do
                 let mutable sum = 0.f
                 for i = 0 to connection.inputLayer.nodeCount-1 do 
                     let k = connection.inputLayer.nodes.Length * j+i 
                     sum <- sum + connection.weights.[k]*connection.inputLayer.nodes.[i]
                 if j < connection.outputLayer.nodeCount then 
-                    connection.outputLayer.nodes.[j]<-logistic sum
+                    //if i <> network.connections.Length-1 || metadata.isClassification then  //if we are not looking at the output layer, OR we are looking at classifcation, apply logistic to the sum of the output layer
+                        connection.outputLayer.nodes.[j]<-logistic sum
+                    //else 
+                    //    connection.outputLayer.nodes.[j]<-sum                               //if we are looking at the output layer, don't apply the logistic sum.
                 else 
                     connection.outputLayer.nodes.[j]<- 0.f
         network.connections
-        |>Seq.iter runThroughConnection
+        |>Seq.iteri runThroughConnection
         outputLayer.nodes
         |> Seq.mapi (fun i v -> v,i)
         |> Seq.max 
@@ -383,7 +389,37 @@ module rec Assignment3 =
                 folds.[j%k] <- seq { yield! s; yield e }    //create a new seqence containing the old sequence (at j%k) and the new element e, and put it back into slot (j%k)
                 generate (j+1)                              //increment j and run again
         generate 0                                          //calls the generate function
-            
+    
+
+    //Does Not Work Consistently
+    //let RBFNetwork (metadata:DataSetMetadata) network point = 
+        
+    //    let logistic (x:float32) = (1./(1.+System.Math.Exp(float -x) )) |> float32      // Logistic Function
+    //    let outputLayer = network.layers.[network.layers.Length-1]                      // Output layer def
+    //    setInputLayerForPoint network point                                             // Set the input layer to the point
+    //    // Connect all of the points in the network
+    //    let runThroughConnection connection = 
+    //        // Iterate through the layers
+    //        for j = 0 to connection.outputLayer.nodeCount - 1 do
+    //            // Create mutable value to hold summation
+    //            let mutable sum = 0.f
+    //            // Iterate through the input layer rows
+    //            for i = 0 to connection.inputLayer.nodeCount - 1 do 
+    //                // Iterate through the columns
+    //                let k = connection.inputLayer.nodes.Length * j + i 
+    //                // Add to the Gaussian function value
+    //                sum <- gaussianFunction connection.inputLayer.nodes connection.weights 0.25f
+    //            // Store the values in the output layer            
+    //            connection.outputLayer.nodes.[j]<-logistic sum        
+    //    // Return network connection values
+    //    network.connections
+    //    |>Seq.iter runThroughConnection                 // Iterate through the sequence        
+    //    // Run through the output layer nodes
+    //    outputLayer.nodes           
+    //    |> Seq.mapi (fun i v -> v,i)                    // Map each node by index
+    //    |> Seq.max                                      // Grab the maximum
+    //    |> fun (v,i) -> v, metadata.getClassByIndex i   // Return as the classification/regression value
+
 
 // IMPLEMENTATIONS
 //--------------------------------------------------------------------------------------------------------------
@@ -419,8 +455,24 @@ let main argv =
             |>Seq.average
         MSE
     )
-    |> Seq.iter (fun x-> printfn "MSE: %f" x)
+    |> Seq.toArray
+    |> Array.iter (fun x-> printfn "MSE: %f" x)
     0
+    //let ds,metadata = dsmd3
+    //let network = createNetwork metadata [|10;10|]
+    //initializeNetwork network 
+    //let [|trainingSet;testSet|] = getRandomFolds 2 ds|> Array.map Seq.toArray
+    ////let trainingSet=trainingSet.[0..0]
+    //trainNetworkToErr 0.01f 2.f metadata network trainingSet
+    //let MSE =
+    //    testSet
+    //    |> Seq.map ( fun p ->
+    //        runNetwork metadata network p 
+    //        |> fun (_,_,err) -> err*err
+    //    )
+    //    |>Seq.average
+    //printfn "MSE: %f" MSE
+    //0
 
     //Networks: 10x10x10, 5x5x10, and 8x4x7
     
