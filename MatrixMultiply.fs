@@ -8,7 +8,7 @@
 //  To be used in implementing the Backpropogation Neural Net
 //
 //--------------------------------------------------------------------------------------------------------------
-
+#nowarn "9"
 // MODULES
 //--------------------------------------------------------------------------------------------------------------
 namespace Project3
@@ -67,9 +67,9 @@ namespace Project3
             if Fma.IsSupported |> not then failwithf "Ed ... ward ... (You don't have the FMA instructions)"
 
             // Fix the values of the input arguments so the array addresses are pinned.
-            use pB = fixed vecB
-            use pA = fixed vecA
-            use pF = fixed vecF
+            use pB = fixed matb
+            use pA = fixed veca
+            use pF = fixed vecf
 
             // Create mutable values to be used in the matrix multiplication
             let mutable iB = 0
@@ -77,7 +77,7 @@ namespace Project3
             let mutable iF = 0
 
             // Assume that outputValues is a multiple of 4
-            while iF < vecF.Length do 
+            while iF < vecf.Length do 
 
                 // Reset iA (vecA counter) to beginning of the input array (vecA) for the next set of outputs (vecF)
                 iA <- 0 
@@ -87,7 +87,7 @@ namespace Project3
 
                 // Iterate through the input vector
                 // Assume that vecA is a multiple of 4
-                while iA < vecA.Length do 
+                while iA < veca.Length do 
 
                     // Fetch a, b, c, and d from vecA
                     let inputVec = Ssse3.LoadVector128(NativeInterop.NativePtr.add pA iA)
@@ -139,7 +139,7 @@ namespace Project3
         // Print results
         printfn "%A" testVecA
         printfn "%A" testMatB
-        printfn "%A" testVecF
+        //printfn "%A" testVecF
 
 
 //--------------------------------------------------------------------------------------------------------------
