@@ -2,6 +2,7 @@
 //
 //  CSCI 447 - Machine Learning
 //  Assignment #3, Fall 2019
+//  Team #6
 //  Chris Major, Farshina Nazrul-Shimim, Tysen Radovich, Allen Simpson
 //
 //  [DESCRIPTION]
@@ -357,7 +358,7 @@ namespace Project3
         //------------------------------------------------------------------------------------------------------
         let RBFNetwork (metadata:DataSetMetadata) network point = 
             
-            let logistic (x:float32) = (1./(1.+System.Math.Exp(float -x) )) |> float32      // Logistic Function
+            // let logistic (x:float32) = (1./(1.+System.Math.Exp(float -x) )) |> float32      // Logistic Function
             
             let outputLayer = network.layers.[network.layers.Length-1]                      // Output layer def
             
@@ -379,10 +380,10 @@ namespace Project3
                         let k = connection.inputLayer.nodes.Length * j + i 
 
                         // Add to the Gaussian function value
-                        sum <- gaussianFunction connection.inputLayer.nodes connection.weights 0.25f
+                        sum <- sum + connection.weights.[k] * connection.inputLayer.nodes.[i]
 
-                    // Store the values in the output layer            
-                    connection.outputLayer.nodes.[j]<-logistic sum
+                    // Store the values in the output layer from the Gaussian Kernel
+                    connection.outputLayer.nodes.[j] <- gaussianFunction connection.inputLayer.nodes connection.weights 0.25f
             
             // Return network connection values
             network.connections
