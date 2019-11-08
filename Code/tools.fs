@@ -1,3 +1,4 @@
+namespace Tools 
 module Seq = 
     let filterWithIndex (filter:int->'a->bool) (s:'a seq) =
         seq {
@@ -18,7 +19,8 @@ module Seq =
                 | _ -> ()
                 idx <- idx+1
         }
-type System.Double with 
-    static member tryParse s = match System.Double.TryParse s with | false,_ -> None | true,v -> Some v 
-type System.Int32 with 
-    static member tryParse s = match System.Int32.TryParse s with | false,_ -> None | true,v -> Some v 
+module Extensions =
+    type System.Double with 
+        static member tryParse s = match System.Double.TryParse (s:string) with | false,_ -> None | true,v -> Some v 
+    type System.Int32 with 
+        static member tryParse s = match System.Int32.TryParse (s:string) with | false,_ -> None | true,v -> Some v 

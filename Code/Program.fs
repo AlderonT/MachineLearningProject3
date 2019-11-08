@@ -143,10 +143,14 @@ module rec Assignment3 =
             |> Map.ofSeq
 
         let categoricalNodeIndices = 
-            categoricalValues 
-            |> Seq.map (function KeyValue(k,v)-> (k,Array.init v.Count id))
-            |> Seq.sortBy fst 
-            |> Seq.map snd 
+            categoricalValues
+            |> Seq.map (function KeyValue(k,v) -> k,v)
+            |> Seq.sortBy fst
+            |> Seq.mapFold (fun idx (k,v) ->
+                let r = Array.init v.Count ((+) idx)
+                r,(idx+v.Count)
+            ) 0
+            |> fst
             |> Seq.toArray
 
         let classificationValues =
@@ -203,8 +207,8 @@ module rec Assignment3 =
         p.categoricalAttributes 
         |> Seq.iteri (fun idx attributeValue -> 
             let nidxs = p.metadata.getCategoricalAttributeNodeIndices idx
-            nidxs |> Seq.iter (fun nidx ->
-                inputLayer.nodes.[nidx] <- if nidx = attributeValue then 1.f else 0.f 
+            nidxs |> Seq.iteri (fun i nidx ->
+                inputLayer.nodes.[nidx] <- if i = attributeValue then 1.f else 0.f 
             )
         )
 
@@ -291,7 +295,7 @@ module rec Assignment3 =
         for j = 0 to inputs.Length-1 do
             let mutable sum = 0.f
             for l = 0 to outputDeltas.Length-1 do
-                let jl = l*outputDeltas.Length+j
+                let jl = l*inputs.Length+j
                 let weight = weights.[jl]
                 sum <- outputDeltas.[l]*weight + sum
             deltas.[j] <- sum*inputs.[j]*(1.f-inputs.[j])
@@ -299,7 +303,7 @@ module rec Assignment3 =
     let updateWeights learningRate (weights:float32[]) (inputs:float32[]) (outputDeltas:float32[]) =
         for j = 0 to outputDeltas.Length-1 do
             for i = 0 to inputs.Length-1 do
-                let ij = j*outputDeltas.Length+i
+                let ij = j*inputs.Length+i
                 let weight = weights.[ij]
                 let delta = -learningRate*inputs.[i]*outputDeltas.[j]
                 weights.[ij] <- weight + delta
@@ -307,14 +311,14 @@ module rec Assignment3 =
     let computeError (network:Network) (expectedoutput:float32[])=
         let outLayer = network.outLayer
         let mutable errSum = 0.f
-        for i = 0 to outLayer.nodeCount do 
+        for i = 0 to outLayer.nodeCount-1 do 
             errSum <- let d = outLayer.nodes.[i] - expectedoutput.[i] in d*d+errSum
         errSum/2.f
 
     let backprop learningRate (network: Network) (expectedOutputs:float32[]) =
         let outputLayer = network.outLayer 
         outputDeltas outputLayer.nodes expectedOutputs outputLayer.deltas
-        for j = network.connections.Length-1 to 1 do    
+        for j = network.connections.Length-1 downto 1 do    
             let connectionMatrix = network.connections.[j]
             let inLayer = connectionMatrix.inputLayer
             let outlayer = connectionMatrix.outputLayer
@@ -332,7 +336,7 @@ module rec Assignment3 =
                 metadata.fillExpectedOutput p expectedOutputs
                 let activationValue,cls = feedForward metadata network p
                 let totalErr = computeError network expectedOutputs
-                printfn "Error for point %d: %f " i totalErr
+                //printfn "Error for point %d: %f " i totalErr
                 backprop learningRate network expectedOutputs
                 totalErr
             )
@@ -388,10 +392,11 @@ open Assignment3
 [<EntryPoint>]
 let main argv =
     let ds1,metadata = (fullDataset @"D:\Fall2019\Machine Learning\MachineLearningProject3\Data\car.data" (Some 6) None 2. true false) //filename classIndex regressionIndex pValue isCommaSeperated hasHeader
-    let network = createNetwork metadata [|10;10;10|]
+    let network = createNetwork metadata [|20;20;20|]
     initializeNetwork network 
     let [|trainingSet;testSet|] = getRandomFolds 2 ds1|> Array.map Seq.toArray
-    trainNetworkToErr 0.1f 2.f metadata network trainingSet
+    //let trainingSet=trainingSet.[0..0]
+    trainNetworkToErr 0.001f 2.f metadata network trainingSet
     let MSE =
         testSet
         |> Seq.map ( fun p ->

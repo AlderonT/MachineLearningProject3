@@ -399,19 +399,19 @@ namespace Project3
             |> fun (v,i) -> v, metadata.getClassByIndex i   // Return as the classification/regression value
 
 // IMPLEMENTATIONS
-//--------------------------------------------------------------------------------------------------------------
-        do
-            let ds1,metadata = (fullDataset @"D:\Fall2019\Machine Learning\MachineLearningProject3\Data\car.data" (Some 6) None 2. true false) //filename classIndex regressionIndex pValue isCommaSeperated hasHeader
-            let network = createNetwork metadata [|10;10;10|]
-            initializeNetwork network 
-            feedForward metadata network ds1.[10]
-            ds1|> Array.map (fun p -> 
-                let cost,cls = feedForward metadata network p
-                cost,cls,p.cls
-            )
-            |> Array.countBy(fun (_,b,c)-> b,c)
+////--------------------------------------------------------------------------------------------------------------
+//        do
+//            let ds1,metadata = (fullDataset @"D:\Fall2019\Machine Learning\MachineLearningProject3\Data\car.data" (Some 6) None 2. true false) //filename classIndex regressionIndex pValue isCommaSeperated hasHeader
+//            let network = createNetwork metadata [|10;10;10|]
+//            initializeNetwork network 
+//            feedForward metadata network ds1.[10]
+//            ds1|> Array.map (fun p -> 
+//                let cost,cls = feedForward metadata network p
+//                cost,cls,p.cls
+//            )
+//            |> Array.countBy(fun (_,b,c)-> b,c)
 
-            network.layers.[network.layers.Length-1].nodes
+//            network.layers.[network.layers.Length-1].nodes
            
 
 //--------------------------------------------------------------------------------------------------------------
