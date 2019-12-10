@@ -1,4 +1,4 @@
-namespace RNN
+﻿namespace RNN
 (*
 #load "C:/work/snippets/Clipboard.fsx"
 open Clipboard
@@ -43,6 +43,14 @@ module Autoencoder =
             expectedOutputs: float32[]
         }
         with
+            //x -> E -> f1 -> D -> x'
+            //x -> E1 -> f1 -> E2 -> f2 -> D2 -> f1' -> D1 -> x'
+            member this.featureLayer =
+                if this.connections.Length % 2 <> 0 then
+                    failwithf "to extract features the network must have an odd number of layers"
+                else
+                    let cm = this.connections.[this.connections.Length/2 - 1]
+                    cm.outputLayer
             member this.outputLayer = this.connections.[this.connections.Length-1].outputLayer
             member this.inputLayer = this.connections.[0].inputLayer
             //Take a network and run the following 4 functions to just load in the data we need
@@ -152,6 +160,13 @@ module Autoencoder =
             let v = 1. / (1. + (System.Math.Exp(-(float x'))))
             r.[i] <- float32 v
 
+    let inverseLogistics length (x:float32[]) (r:float32[]) =
+        for i = 0 to length-1 do
+            let x' = float x.[i]
+            let v = -System.Math.Log((1./x') - 1.)
+            r.[i] <- float32 v
+
+
     let outputDeltas (outputs:float32[]) (expected:float32[]) (deltas:float32[]) =  //here we have things set up so we needn't worry about the bias nodes
         for i = 0 to expected.Length-1 do
             let o = outputs.[i]
@@ -233,7 +248,7 @@ module Autoencoder =
             network.LoadInput i
             network.LoadExpectedOutput e
             let pred = feedForward network
-            let loss = lossFunction e pred          // Print the resulting error
+            let loss = lossFunction e pred          //⋁⋁⋁ Print the resulting error
             printfn "i:%A pred: %A e: %A loss: %f" i pred e loss
             loss                                    //return the loss
         )
@@ -287,7 +302,9 @@ module Autoencoder =
         let f x = 2.3*x + 0.4
         let insideCurve (x,y) =
             let y' = f x
-            abs(y-y')/y < 0.01
+            if y = 0. then y = y'
+            else
+                abs((y-y')/y) < 0.01
         let data =
             Seq.initInfinite (fun _ -> rand_m4_4(), rand_m4_4() )
             |> Seq.filter insideCurve
@@ -299,42 +316,148 @@ module Autoencoder =
         // to do this we will preprocess the input data using the logistics function
 
         data
-        |> Seq.map (fun (x,y) -> let i = [|computeLogistic x; computeLogistic y|] in i, i)  //this line with i being the input and output is the only difference between an AE and a normal backprop NN
+        |> Seq.map (fun (x,y) -> let i = [|computeLogistic x; computeLogistic y|] in i, i, [|x;y|])  //this line with i being the input and output is the only difference between an AE and a normal backprop NN
         |> Seq.toArray
-        //|> Seq.map (fun (x,y) -> sprintf "%f\t%f" x.[0] x.[1])
-        //|> String.concat "\n"
-        //|> toClipboard
 
     let copyTo2D (a:float32[,]) (b:float32[,]) =
         for j = 0 to a.GetLength(0)-1 do
             for i = 0 to a.GetLength(1)-1 do
                 b.[j,i] <- a.[j,i]
 
+    let make1lvlSAE inputLayerSize featureCount outputLayerSize (classifications:float32[][]) trainingSet = 
+        let lvl1 = Network.Create rand_uniform_1m_1 [|inputLayerSize;featureCount;inputLayerSize|]                              // Auto-encoder Level 1
+        let lvlo = Network.Create rand_uniform_1m_1 [|featureCount;outputLayerSize|]                                   // Auto-encoder Level 3
+
+        // Train the level 1 auto-encoder (1 auto-encoder layer)
+        for i = 0 to 10000 do
+            let avgLoss = train 1.f lvl1 trainingSet distanceSquaredArray
+            if i%1000 = 0 then
+                printfn "%d: %f" i avgLoss
+
+        let trainingSet' =                                                                     // Training set to feed into the next level
+            trainingSet
+            |> Seq.mapi (fun n (i,_) ->                                                         // Map the values of the reduced set
+                let pred = feedForward lvl1                                                     // Predicted values of level 2
+                let r = Array.copy pred 
+                r,classifications.[n]
+            )
+
+        for i = 0 to 10000 do
+            let avgLoss = train 1.f lvlo trainingSet' distanceSquaredArray
+            if i%1000 = 0 then
+                printfn "%d: %f" i avgLoss
+
+        let stackedAutoEncoder = 
+            let cm1 = lvl1.connections.[0]                                                      // Connection matrix for Level 1 (goes to lvl2)
+            let cmo = lvlo.connections.[0]                                                      // Connection matrix for Level O (goes to output)
+            let cmo = {cmo with inputLayer = cm1.outputLayer;}                                  // Connect 3's CM with 2's output layer
+            let network =                                                                       // Create the network
+                {
+                    connections = [|cm1;cmo|]                                                   // Connect 1's CM, 2's CM, and 3's CM
+                    expectedOutputs = Array.zeroCreate cmo.outputLayer.Length                       // Create array of expected outputs
+                }
+            network.expectedOutputs.[network.expectedOutputs.Length-1] <- 1.f
+            network
+        stackedAutoEncoder
+
+
     let test() =
         let trainingSet = testData2()
+        let classifications : float32[][] = Array.empty
+        //let trainingSet, originalData =
+        //    let ts = trainingSet |> Array.map (fun (a,b,_) -> a,b)
+        //    let od = trainingSet |> Array.map (fun (_,_,c) -> c)
+        //    ts,od
         // pretty damn good approximation of XOR
         let xorNetwork = Network.Load "Y2ZgYGACYhYo7Wuxw4HJrvXAbdM79i5TGxw04z0cfB+sOZD0cJnD2ZRLB6z2qR0Qv7jP4fLZMw7LRYQP6D874FA7da2D2cQ7B2xarhzIepdnf7Rty4GUwj0Hpt645DD95D2H/Ofz9gMA"
         // use with testData2
         let network = Network.Create rand_uniform_1m_1 [|2;1;2|]
         
+
+
+        let lvl1 = Network.Create rand_uniform_1m_1 [|100;50;100|]                              // Auto-encoder Level 1
+        let lvl2 = Network.Create rand_uniform_1m_1 [|50;10;50|]                                // Auto-encoder Level 2
+        let lvl3 = Network.Create rand_uniform_1m_1 [|10;10|]                                   // Auto-encoder Level 3
+
+        // Train the level 1 auto-encoder (1 auto-encoder layer)
+        for i = 0 to 10000 do
+            let avgLoss = train 1.f lvl1 trainingSet distanceSquaredArray
+            if i%1000 = 0 then
+                printfn "%d: %f" i avgLoss
+        let trainingSet' =                                                                      // Training set to feed into the next level
+            trainingSet                                                                     
+            |> Seq.map (fun (i,_) ->                                                            // Map the values of the reduced set
+                let pred = feedForward lvl1                                                     // Predicted values of level 1
+                let r = Array.copy pred 
+                r,r
+            )
+
+        // Train the level 2 auto-encoder (2 auto-encoder layers)
+        for i = 0 to 10000 do
+            let avgLoss = train 1.f lvl2 trainingSet' distanceSquaredArray
+            if i%1000 = 0 then
+                printfn "%d: %f" i avgLoss
+        let trainingSet'' =                                                                     // Training set to feed into the next level
+            trainingSet'
+            |> Seq.mapi (fun n (i,_) ->                                                         // Map the values of the reduced set
+                let pred = feedForward lvl2                                                     // Predicted values of level 2
+                let r = Array.copy pred 
+                r,classifications.[n]
+            )
+
+        for i = 0 to 10000 do
+            let avgLoss = train 1.f lvl3 trainingSet'' distanceSquaredArray
+            if i%1000 = 0 then
+                printfn "%d: %f" i avgLoss
+
+        let stackedAutoEncoder = 
+            let cm1 = lvl1.connections.[0]                                                      // Connection matrix for Level 1 (goes to lvl2)
+            let cm2 = lvl2.connections.[0]                                                      // Connection matrix for Level 2 (goes to lvl3)   
+            let cm3 = lvl3.connections.[0]                                                      // Connection matrix for Level 3 (goes to output)
+            let cm2 = {cm2 with inputLayer = cm1.outputLayer;}                                  // Connect 2's CM with 1's output layer
+            let cm3 = {cm3 with inputLayer = cm2.outputLayer;}                                  // Connect 3's CM with 2's output layer
+            let network =                                                                       // Create the network
+                {
+                    connections = [|cm1;cm2;cm3|]                                                   // Connect 1's CM, 2's CM, and 3's CM
+                    expectedOutputs = Array.zeroCreate cm3.outputLayer.Length                       // Create array of expected outputs
+                }
+            network.expectedOutputs.[network.expectedOutputs.Length-1] <- 1.f
+            network
+
         let loss = check network trainingSet distanceSquaredArray
 
         trainingSet
-        |> Seq.map (fun (i,e) ->
+        |> Seq.mapi (fun n (i,e) ->
             network.LoadExpectedOutput(e)
             network.LoadInput(i)
             let pred = feedForward network
-            i,pred
+            let i', p' = Array.zeroCreate i.Length, Array.zeroCreate pred.Length
+            inverseLogistics i.Length i i'
+            inverseLogistics (pred.Length-1) pred p'
+            i,pred,i',p'
         )
-        |> Seq.map (fun (i,p) -> sprintf "%f\t%f\t%f\t%f" i.[0] i.[1] p.[0] p.[1])
+        |> Seq.map (fun (i,p,i',p') -> sprintf "%f\t%f\t%f\t%f\t%f\t%f\t%f\t%f" i.[0] i.[1] p.[0] p.[1] i'.[0] i'.[1] p'.[0] p'.[1])
         |> String.concat "\n"
-        //|> toClipboard
+        |> toClipboard
 
         //let loss = check xorNetwork trainingSet distanceSquaredArray
         for i = 0 to 100000 do
             let avgLoss = train 1.f network trainingSet distanceSquaredArray
             if i%1000 = 0 then
                 printfn "%d: %f" i avgLoss
+
+        // now that we've trained the autoencoder, lets take a look at the extracted features
+        trainingSet
+        |> Seq.mapi (fun n (i,e) ->
+            network.LoadExpectedOutput(e)
+            network.LoadInput(i)
+            feedForward network |> ignore
+            let featureLayer = network.featureLayer
+            i,featureLayer.nodes
+        )
+        |> Seq.map (fun (i,f) -> sprintf "%f\t%f\t%f" i.[0] i.[1] f.[0])
+        |> String.concat "\n"
+        |> toClipboard
 
         network.connections.[1].weights |> sprintf "%A"
 
