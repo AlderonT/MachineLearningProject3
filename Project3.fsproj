@@ -6,9 +6,6 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Compile Include="Code\GaussianFunction.fs" />
-    <Compile Include="Code/MatrixMultiply.fs" />
-    <Compile Include="Code/tools.fs" />
     <Compile Include="Code/Program.fs" />
   </ItemGroup>
 
