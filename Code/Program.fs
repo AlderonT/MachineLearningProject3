@@ -38,68 +38,75 @@ module Autoencoder =
     // TYPE DECLARATIONS
     //---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- 
     
-    // Function to implement a biased layer, which adds an extra bias value of 1.f as the last node in the layer
+    // Type to implement a biased layer, which adds an extra bias value of 1.f as the last node in the layer
     type Layer =
         {
             nodes: float32[]                                                                // Array of layer nodes    
             deltas: float32[]                                                               // Array of delta errors
         }
         with
-            member this.Length = this.nodes.Length                                          //
-            member this.ResetBias() = this.nodes.[this.nodes.Length-1] <- 1.f
-            static member Create size =
-                
-                // Create the Layer with an extra bias node
+            member this.Length = this.nodes.Length                                          // Method to the length of a layer
+            member this.ResetBias() = this.nodes.[this.nodes.Length-1] <- 1.f               // Method to reset the bias nodes
+            static member Create size =                                                     // Method to create a Layer with an extra bias node
                 let x = {
-                    nodes = Array.zeroCreate (size+1)
-                    deltas = Array.zeroCreate (size+1)
+                    nodes = Array.zeroCreate (size+1)                                       // Increase size of nodes array
+                    deltas = Array.zeroCreate (size+1)                                      // Increase size of deltas array
                 }
-                x.nodes.[x.nodes.Length-1] <- 1.f
-                x
-    /// implements a biased network
+                x.nodes.[x.nodes.Length-1] <- 1.f                                           // Set bias nodes
+                x                                                                           // Return new array
+    
+    // Type to implement a connection matrix
     type ConnectionMatrix =
         {
-            inputLayer: Layer
-            outputLayer: Layer
-            weights: float32[,]
+            inputLayer: Layer                                                               // Input layer
+            outputLayer: Layer                                                              // Output layer 
+            weights: float32[,]                                                             // Weight matrix
         }
-    /// implements a biased network
+
+    // Type to implement a biased network
     type Network = 
         {           
-            connections: ConnectionMatrix[]
-            expectedOutputs: float32[]
+            connections: ConnectionMatrix[]                                                 // Connection matrix
+            expectedOutputs: float32[]                                                      // Array of expected outputs
         }
         with
-            //x -> E -> f1 -> D -> x'
-            //x -> E1 -> f1 -> E2 -> f2 -> D2 -> f1' -> D1 -> x'
+            
+            // Method to validate proper layer specifications for the network
             member this.featureLayer =
                 if this.connections.Length % 2 <> 0 then
-                    failwithf "to extract features the network must have an odd number of layers"
+                    failwithf "ERROR: To extract features, the network must have an odd number of layers!"
                 else
                     let cm = this.connections.[this.connections.Length/2 - 1]
                     cm.outputLayer
+
+            // Method to get the output layer of the network
             member this.outputLayer = this.connections.[this.connections.Length-1].outputLayer
+
+            // Method to get the input layer of the network
             member this.inputLayer = this.connections.[0].inputLayer
-            //Take a network and run the following 4 functions to just load in the data we need
+
+            // Methods to load in the data we need
+            // #1: Only copy in the non-bias elements, leave the last bias node alone
             member this.LoadInput (inputs:float32[]) =
-                // only copy in the non-bias elements, leave the last bias node alone
                 System.Array.Copy(inputs,this.inputLayer.nodes,this.inputLayer.Length-1)
+                
+            // #2: Only copy in the non-bias elements, leave the last bias node alone
             member this.LoadInput (inputs:seq<float32>) =
-                // only copy in the non-bias elements, leave the last bias node alone
                 inputs |> Seq.iteri (fun i v -> if i < (this.inputLayer.nodes.Length-1) then this.inputLayer.nodes.[i] <- v)
+
+            // #3: When loading expected outputs into the network we remember to set the bias node entry to 1.f
             member this.LoadExpectedOutput (inputs:float32[]) =
-                // the expected output does have a bias node because it makes it easier to write the code, we just have to remember to ignore it
-                // when loading expected outputs into the network we remember to set the bias node entry to 1.f
                 System.Array.Copy(inputs,this.expectedOutputs,this.expectedOutputs.Length-1)
-                this.expectedOutputs.[this.expectedOutputs.Length-1] <- 1.f // this is because this should always be 1.f because its the bias
+                this.expectedOutputs.[this.expectedOutputs.Length-1] <- 1.f
+
+            // #4: The expected output does have a bias node because it makes it easier to write the code, we just have to remember to ignore it
             member this.LoadExpectedOutput (inputs:seq<float32>) =
-                // the expected output does have a bias node because it makes it easier to write the code, we just have to remember to ignore it
-                // when loading expected outputs into the network we remember to set the bias node entry to 1.f
                 inputs |> Seq.iteri (fun i v -> if i < (this.inputLayer.nodes.Length-1) then this.expectedOutputs.[i] <- v)
-                this.expectedOutputs.[this.expectedOutputs.Length-1] <- 1.f // this is because this should always be 1.f because its the bias
-            //Here we are doing a customize Seq.map function
+                this.expectedOutputs.[this.expectedOutputs.Length-1] <- 1.f
+
+            // Static method to perform a customized Seq.map function
             static member Create (nodeValue:unit->float32) (sizes:int seq) =
-                let e = sizes.GetEnumerator()                                   //we are creating an enumerator enumerating over sizes
+                let e = sizes.GetEnumerator()                                               // we are creating an enumerator enumerating over sizes
                 if e.MoveNext() |> not then                                     //if have a size<1 then we
                     failwithf "need at least two sizes specified"               //fail
                 let inputLayer = Layer.Create e.Current                         //here we initiate a layer using our enumerator's current element
@@ -269,14 +276,15 @@ module Autoencoder =
             lossFunction e pred                         //finally returning the resultant error of the loss function
         )
         |> Seq.average                              //get the average
-    let check (network:Network) (validationSet:seq<float32[]*float32[]>) (lossFunction:float32[] -> float32[] -> float32) =
+    let check printErrors (network:Network) (validationSet:seq<float32[]*float32[]>) (lossFunction:float32[] -> float32[] -> float32) =
         validationSet                               //map the validation set
         |> Seq.map (fun (i,e) ->                    //to the same thing as above
             network.LoadInput i
             network.LoadExpectedOutput e
             let pred = feedForward network
             let loss = lossFunction e pred          //⋁⋁⋁ Print the resulting error
-            printfn "i:%A pred: %A e: %A loss: %f" i pred e loss
+            if printErrors then
+                printfn "i:%A pred: %A e: %A loss: %f" i pred e loss
             loss                                    //return the loss
         )
         |> Seq.average
@@ -352,6 +360,7 @@ module Autoencoder =
                 b.[j,i] <- a.[j,i]
 
     let make1lvlSAE trainingCount learningRate inputLayerSize featureCount outputLayerSize trainingSetOriginal = 
+        let sw = System.Diagnostics.Stopwatch.StartNew()
         let classifications = trainingSetOriginal |> Seq.map snd |> Seq.toArray
         let trainingSet = trainingSetOriginal |> Seq.map fst |> Seq.map (fun x -> x, x) |> Seq.toArray
         let lvl1 = Network.Create rand_uniform_1m_1 [|inputLayerSize;featureCount;inputLayerSize|]                              // Auto-encoder Level 1
@@ -395,9 +404,13 @@ module Autoencoder =
             let avgLoss = train learningRate stackedAutoEncoder trainingSetOriginal distanceSquaredArray
             if i%1000 = 0 then
                 printfn "%d: %f" i avgLoss
+        sw.Stop()
+        let elapsedTime = sw.Elapsed.TotalSeconds
+        printfn "ElapsedTime: %fs" elapsedTime
         stackedAutoEncoder
 
     let make2lvlSAE trainingCount learningRate inputLayerSize featureCount1 featureCount2 outputLayerSize trainingSetOriginal = 
+        let sw = System.Diagnostics.Stopwatch.StartNew()
         let classifications = trainingSetOriginal |> Seq.map snd |> Seq.toArray
         let trainingSet = trainingSetOriginal |> Seq.map fst |> Seq.map (fun x -> x, x) |> Seq.toArray
         let lvl1 = Network.Create rand_uniform_1m_1 [|inputLayerSize;featureCount1;inputLayerSize|]                              // Auto-encoder Level 1
@@ -459,9 +472,13 @@ module Autoencoder =
             let avgLoss = train learningRate stackedAutoEncoder trainingSetOriginal distanceSquaredArray
             if i%1000 = 0 then
                 printfn "%d: %f" i avgLoss
+        sw.Stop()
+        let elapsedTime = sw.Elapsed.TotalSeconds
+        printfn "ElapsedTime: %fs" elapsedTime
         stackedAutoEncoder
 
     let make3lvlSAE trainingCount learningRate inputLayerSize featureCount1 featureCount2 featureCount3 outputLayerSize trainingSetOriginal = 
+        let sw = System.Diagnostics.Stopwatch.StartNew()
         let classifications = trainingSetOriginal |> Seq.map snd |> Seq.toArray
         let trainingSet = trainingSetOriginal |> Seq.map fst |> Seq.map (fun x -> x, x) |> Seq.toArray
         let lvl1 = Network.Create rand_uniform_1m_1 [|inputLayerSize;featureCount1;inputLayerSize|]                              // Auto-encoder Level 1
@@ -541,6 +558,9 @@ module Autoencoder =
             let avgLoss = train learningRate stackedAutoEncoder trainingSetOriginal distanceSquaredArray
             if i%1000 = 0 then
                 printfn "%d: %f" i avgLoss
+        sw.Stop()
+        let elapsedTime = sw.Elapsed.TotalSeconds
+        printfn "ElapsedTime: %fs" elapsedTime
         stackedAutoEncoder
 
 
