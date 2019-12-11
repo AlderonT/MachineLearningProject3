@@ -18,6 +18,7 @@ module Datasets =
     
     // Write out functions
      
+    let logistic (x:float32) = (1./(1.+System.Math.Exp(float -x) ))|>float32    //Logistic Fn
 
     ////GET THE DATASET
     let fullDataset filename (classIndex:int option) (regressionIndex : int option) (pValue:float) isCommaSeperated hasHeader= 
@@ -86,7 +87,6 @@ module Datasets =
             |> Seq.distinct
             |> Seq.sort
             |> Seq.toArray                
-        let logistic (x:float32) = (1./(1.+System.Math.Exp(float -x) ))|>float32    //Logistic Fn
         let metadata:DataSetMetadata = 
             { new DataSetMetadata with
                 member _.getRealAttributeNodeIndex idx = if idx > realIndexes.Count then failwithf "index %d is outside of range of real attributes" idx else idx 
@@ -145,7 +145,7 @@ module Datasets =
         p.realAttributes 
         |> Seq.iteri (fun idx attributeValue -> 
             let nidx = p.metadata.getRealAttributeNodeIndex idx 
-            inputLayer.[nidx] <- attributeValue 
+            inputLayer.[nidx] <- logistic attributeValue 
         )
         p.categoricalAttributes 
         |> Seq.iteri (fun idx attributeValue -> 
@@ -207,7 +207,7 @@ module Datasets =
         folds
         |> Seq.mapi (fun i v ->
             let trainingSet = folds |> Seq.filterWithIndex (fun i' _ -> i <> i') |> Seq.collect id |> Seq.toArray
-            let validationSet = v
+            let validationSet = v |> Seq.toArray
             trainingSet, validationSet
         )
         |> Seq.toArray

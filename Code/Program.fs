@@ -26,26 +26,30 @@ open Datasets
 //---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- 
 module Autoencoder =
 
+    // Function to generate random values over a uniform distribution
     let rand_uniform_1m_1 =
-        let rand = System.Random()
+        let rand = System.Random()                                                          // Create RNG
         fun () ->
-            let n = rand.NextDouble()
-            float32 (n*2. - 1.)
+            let n = rand.NextDouble()                                                       // Generate the next random double value
+            float32 (n*2. - 1.)                                                             // Return the normalized value as a float
 
-    /// implements a Biased layer, which adds an extra bias value of 1.f as the last node in the layer
+
 
     // TYPE DECLARATIONS
     //---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- 
+    
+    // Function to implement a biased layer, which adds an extra bias value of 1.f as the last node in the layer
     type Layer =
         {
-            nodes: float32[]
-            deltas: float32[]
+            nodes: float32[]                                                                // Array of layer nodes    
+            deltas: float32[]                                                               // Array of delta errors
         }
         with
-            member this.Length = this.nodes.Length
+            member this.Length = this.nodes.Length                                          //
             member this.ResetBias() = this.nodes.[this.nodes.Length-1] <- 1.f
             static member Create size =
-                // create the Layer with an extra bias node
+                
+                // Create the Layer with an extra bias node
                 let x = {
                     nodes = Array.zeroCreate (size+1)
                     deltas = Array.zeroCreate (size+1)
