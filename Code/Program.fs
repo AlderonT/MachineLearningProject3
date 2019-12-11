@@ -327,9 +327,9 @@ module Autoencoder =
             for i = 0 to a.GetLength(1)-1 do
                 b.[j,i] <- a.[j,i]
 
-    let make1lvlSAE trainingCount learningRate inputLayerSize featureCount outputLayerSize (classifications:float32[][]) trainingSetOriginal = 
-        let classifications = trainingSetOriginal |> Seq.map 
-        let trainingSet = trainingSetOriginal |> Seq.map 
+    let make1lvlSAE trainingCount learningRate inputLayerSize featureCount outputLayerSize trainingSetOriginal = 
+        let classifications = trainingSetOriginal |> Seq.map snd |> Seq.toArray
+        let trainingSet = trainingSetOriginal |> Seq.map fst |> Seq.map (fun x -> x, x) |> Seq.toArray
         let lvl1 = Network.Create rand_uniform_1m_1 [|inputLayerSize;featureCount;inputLayerSize|]                              // Auto-encoder Level 1
         let lvlo = Network.Create rand_uniform_1m_1 [|featureCount;outputLayerSize|]                                   // Auto-encoder Level 3
 
@@ -365,11 +365,54 @@ module Autoencoder =
             network
 
         for i = 0 to trainingCount do
-            let avgLoss = train learningRate lvlo trainingSet' distanceSquaredArray
+            let avgLoss = train learningRate stackedAutoEncoder trainingSetOriginal distanceSquaredArray
             if i%1000 = 0 then
                 printfn "%d: %f" i avgLoss
         stackedAutoEncoder
 
+    let make2lvlSAE trainingCount learningRate inputLayerSize featureCount1 featureCount2 outputLayerSize trainingSetOriginal = 
+        let classifications = trainingSetOriginal |> Seq.map snd |> Seq.toArray
+        let trainingSet = trainingSetOriginal |> Seq.map fst |> Seq.map (fun x -> x, x) |> Seq.toArray
+        let lvl1 = Network.Create rand_uniform_1m_1 [|inputLayerSize;featureCount;inputLayerSize|]                              // Auto-encoder Level 1
+        let lvl2 = Network.Create rand_uniform_1m_1 [|inputLayerSize;featureCount;inputLayerSize|]                              // Auto-encoder Level 1
+        let lvlo = Network.Create rand_uniform_1m_1 [|featureCount;outputLayerSize|]                                   // Auto-encoder Level 3
+
+        // Train the level 1 auto-encoder (1 auto-encoder layer)
+        for i = 0 to trainingCount do
+            let avgLoss = train learningRate lvl1 trainingSet distanceSquaredArray
+            if i%1000 = 0 then
+                printfn "%d: %f" i avgLoss
+
+        let trainingSet' =                                                                     // Training set to feed into the next level
+            trainingSet
+            |> Seq.mapi (fun n (i,_) ->                                                         // Map the values of the reduced set
+                let pred = feedForward lvl1                                                     // Predicted values of level 2
+                let r = Array.copy pred 
+                r,classifications.[n]
+            )
+
+        for i = 0 to trainingCount do
+            let avgLoss = train learningRate lvlo trainingSet' distanceSquaredArray
+            if i%1000 = 0 then
+                printfn "%d: %f" i avgLoss
+
+        let stackedAutoEncoder = 
+            let cm1 = lvl1.connections.[0]                                                      // Connection matrix for Level 1 (goes to lvl2)
+            let cmo = lvlo.connections.[0]                                                      // Connection matrix for Level O (goes to output)
+            let cmo = {cmo with inputLayer = cm1.outputLayer;}                                  // Connect 3's CM with 2's output layer
+            let network =                                                                       // Create the network
+                {
+                    connections = [|cm1;cmo|]                                                   // Connect 1's CM, 2's CM, and 3's CM
+                    expectedOutputs = Array.zeroCreate cmo.outputLayer.Length                       // Create array of expected outputs
+                }
+            network.expectedOutputs.[network.expectedOutputs.Length-1] <- 1.f
+            network
+
+        for i = 0 to trainingCount do
+            let avgLoss = train learningRate stackedAutoEncoder trainingSetOriginal distanceSquaredArray
+            if i%1000 = 0 then
+                printfn "%d: %f" i avgLoss
+        stackedAutoEncoder
 
     let test() =
         let trainingSet = testData2()

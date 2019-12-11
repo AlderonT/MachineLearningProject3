@@ -1,5 +1,151 @@
 ﻿namespace SAE_NN
+open Types
+
 module Datasets =
+
+
+    ////GET THE DATASET
+    let fullDataset filename (classIndex:int option) (regressionIndex : int option) (pValue:float) isCommaSeperated hasHeader= 
+        let classIndex,regressionIndex = 
+            match classIndex,regressionIndex with 
+            | None,None     -> -1,-1
+            | None,Some a   -> -1,a 
+            | Some a,None   -> a,-1
+            | Some a,Some b -> a,b
+        let dataSet = fetchTrainingSet filename isCommaSeperated hasHeader
+      
+        ////Need to comment this!
+        let columns = dataSet|> Seq.transpose|> Seq.toArray 
+        let realIndexes,categoricalIndexes = 
+            columns
+            |>Seq.mapi (fun i c -> i,c)
+            |>Seq.filter (fun (i,_) -> i<>regressionIndex && i<> classIndex)
+            |>Seq.map (fun (i,c) ->
+          
+                i,
+                (c
+                    |> Seq.exists (fun v -> 
+                    v
+                    |>System.Double.tryParse 
+                    |> Option.isNone
+                    )
+                )
+            )
+            |>Seq.toArray
+            |>Array.partition snd
+            |>(fun (c,r) -> (r|> Seq.map fst |>Set.ofSeq),(c|>Seq.map fst |>Set.ofSeq))
+      
+        let categoricalValues = 
+            dataSet 
+            |> Seq.collect (fun row -> row|>Seq.mapi (fun i value-> i,value.ToLowerInvariant())) //value.ToLowerInvariant() forces the strings to all be lowercase
+            |> Seq.filter (fst >> categoricalIndexes.Contains)
+            |> Seq.distinct
+            |> Seq.groupBy fst
+            |> Seq.map (fun (catIdx,s)->
+                let values = 
+                    s 
+                    |> Seq.map snd
+                    |> Seq.sort
+                    |> Seq.mapi (fun n v -> (v,n))
+                    |> Map.ofSeq
+                catIdx,values
+            )
+            |> Map.ofSeq
+
+        let categoricalNodeIndices = 
+            categoricalValues
+            |> Seq.map (function KeyValue(k,v) -> k,v)
+            |> Seq.sortBy fst
+            |> Seq.mapFold (fun idx (k,v) ->
+                let r = Array.init v.Count ((+) idx)
+                r,(idx+v.Count)
+            ) 0
+            |> fst
+            |> Seq.toArray
+
+        let classificationValues =
+            dataSet 
+            |> Seq.collect (fun row -> row|>Seq.mapi (fun i value-> i,value.ToLowerInvariant())) //value.ToLowerInvariant() forces the strings to all be lowercase
+            |> Seq.filter (fst >> ((=) classIndex)) //checks if the index is equal to the class index
+            |> Seq.map snd
+            |> Seq.distinct
+            |> Seq.sort
+            |> Seq.toArray                
+        let logistic (x:float32) = (1./(1.+System.Math.Exp(float -x) ))|>float32    //Logistic Fn
+        let metadata:DataSetMetadata = 
+            { new DataSetMetadata with
+                member _.getRealAttributeNodeIndex idx = if idx > realIndexes.Count then failwithf "index %d is outside of range of real attributes" idx else idx 
+                member _.getCategoricalAttributeNodeIndices idx = categoricalNodeIndices.[idx]
+                member _.inputNodeCount = realIndexes.Count+(categoricalNodeIndices|> Seq.sumBy (fun x -> x.Length))
+                member _.outputNodeCount = if regressionIndex <> -1 then 1 else classificationValues.Length
+                member _.getClassByIndex idx = if idx<classificationValues.Length then classificationValues.[idx] else "UNKNOWN"
+                member _.fillExpectedOutput point expectedOutputs = 
+                    if regressionIndex<> -1 then expectedOutputs.[0] <- (logistic(point.regressionValue.Value|>float32) )
+                    else    
+                        for i = 0 to classificationValues.Length-1 do 
+                            if point.cls.Value.ToLowerInvariant() = classificationValues.[i] then expectedOutputs.[i] <- 1.f
+                            else expectedOutputs.[i] <- 0.f
+                member _.isClassification = if regressionIndex <> -1 then false else true
+            }
+        let dataSet = 
+            dataSet
+            |> Seq.map (fun p -> 
+                {
+                    cls = match classIndex with | -1 -> None | i -> Some p.[i]
+                    regressionValue = match regressionIndex with | -1 -> None | i -> (p.[i] |> System.Double.tryParse) //Needs to be able to parse ints into floats
+                    realAttributes = p |> Seq.filterWithIndex (fun i a -> realIndexes.Contains i) |>Seq.map System.Double.Parse |>Seq.map (fun x -> x|>float32)|> Seq.toArray
+                    categoricalAttributes = 
+                        p 
+                        |> Seq.chooseWithIndex (fun i a -> 
+                            match categoricalValues.TryFind i with
+                            | None -> None 
+                            | Some values -> values.TryFind a 
+                            )
+                        |> Seq.toArray
+                    metadata = metadata
+                }
+            ) |> Seq.toArray
+        dataSet,metadata
+
+
+    let setInputLayerForPoint (n:Network) (p:Point) =
+        let inputLayer = n.layers.[0]
+        for i = inputLayer.nodeCount to inputLayer.nodes.Length-1 do 
+            inputLayer.nodes.[i] <- 0.f
+        p.realAttributes 
+        |> Seq.iteri (fun idx attributeValue -> 
+            let nidx = p.metadata.getRealAttributeNodeIndex idx 
+            inputLayer.nodes.[nidx] <- attributeValue 
+        )
+        p.categoricalAttributes 
+        |> Seq.iteri (fun idx attributeValue -> 
+            let nidxs = p.metadata.getCategoricalAttributeNodeIndices idx
+            nidxs |> Seq.iteri (fun i nidx ->
+                inputLayer.nodes.[nidx] <- if i = attributeValue then 1.f else 0.f 
+            )
+        )
+
+    let getInputLayerFromPoint (p:Point) =
+        let inputLayer = Array.zeroCreate (p.metadata.inputNodeCount)
+        p.realAttributes 
+        |> Seq.iteri (fun idx attributeValue -> 
+            let nidx = p.metadata.getRealAttributeNodeIndex idx 
+            inputLayer.[nidx] <- attributeValue 
+        )
+        p.categoricalAttributes 
+        |> Seq.iteri (fun idx attributeValue -> 
+            let nidxs = p.metadata.getCategoricalAttributeNodeIndices idx
+            nidxs |> Seq.iteri (fun i nidx ->
+                inputLayer.[nidx] <- if i = attributeValue then 1.f else 0.f 
+            )
+        )
+        inputLayer
+
+    let getOutputLayerFromPoint (p:Point) =
+        let outputLayer = Array.zeroCreate (p.metadata.outputNodeCount)
+        p.metadata.fillExpectedOutput p outputLayer
+        outputLayer
+
 
     let getRandomFolds k (dataSet:'a seq) = //k is the number of slices dataset is the unsliced dataset
         let rnd = System.Random()           //init randomnumbergenerator
