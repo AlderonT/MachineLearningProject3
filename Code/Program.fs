@@ -33,6 +33,9 @@ module Autoencoder =
             float32 (n*2. - 1.)
 
     /// implements a Biased layer, which adds an extra bias value of 1.f as the last node in the layer
+
+    // TYPE DECLARATIONS
+    //---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- 
     type Layer =
         {
             nodes: float32[]
@@ -559,6 +562,7 @@ module Main =
                     let sae = makeSAE trainingSet
                     let saeErr = check sae validationSet distanceSquaredArray
                     printfn "Fold [%d] error: %f" fold saeErr
+                    saeErr
                 )
                 |> Seq.average
             printfn "MSE: %f" mse
