@@ -1,18 +1,36 @@
-﻿namespace SAE_NN
+﻿//---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- 
+//
+//  CSCI 447 - Machine Learning
+//  Extra Credit Assignment, Fall 2019
+//  Chris Major, Farshina Nazrul-Shimim, Tysen Radovich, Allen Simpson
+//
+//  Implementation of a stacked auto-encoder neural network
+//
+//---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- 
+
+
+// NAMESPACE
+//---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- 
+namespace SAE_NN
+
+
+// TYPES MODULE
+//---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- 
 module rec Types =
+
 
 // OBJECTS
 //--------------------------------------------------------------------------------------------------------------
         
     // Create a Metadata object to distinguish real and categorical attributes by index
     type DataSetMetadata = 
-        abstract member getRealAttributeNodeIndex           : int -> int            // Indices of the real attributes
-        abstract member getCategoricalAttributeNodeIndices  : int -> int[]          // Indices of the categorical attributes
-        abstract member inputNodeCount                      : int                   // number of input nodes
-        abstract member outputNodeCount                     : int                   // number of output nodes
-        abstract member getClassByIndex                     : int -> string         // get the class associated with this node's index
-        abstract member fillExpectedOutput                  : Point -> float32[] -> unit    //assigned the expected output of Point to the float32[]
-        abstract member isClassification                    : bool                  //stores if this dataset is classification
+        abstract member getRealAttributeNodeIndex           : int -> int                    // Indices of the real attributes
+        abstract member getCategoricalAttributeNodeIndices  : int -> int[]                  // Indices of the categorical attributes
+        abstract member inputNodeCount                      : int                           // number of input nodes
+        abstract member outputNodeCount                     : int                           // number of output nodes
+        abstract member getClassByIndex                     : int -> string                 // get the class associated with this node's index
+        abstract member fillExpectedOutput                  : Point -> float32[] -> unit    // assigned the expected output of Point to the float32[]
+        abstract member isClassification                    : bool                          // stores if this dataset is classification
 
     // Create a Layer object to represent a layer within the neural network
     type Layer = {
@@ -41,9 +59,9 @@ module rec Types =
     type Point = {
         realAttributes                          : float32[]                         // the floating point values for the real points
         categoricalAttributes                   : int[]                             // the values for categorical attributes. distance will be discrete
-        cls                                     : string option
-        regressionValue                         : float option
-        metadata                                : DataSetMetadata
+        cls                                     : string option                     // the class of the point
+        regressionValue                         : float option                      // the regression value
+        metadata                                : DataSetMetadata                   // the point metadata
     }
 
         // Method for the Point object (not entirely functional but simple enough for application)
@@ -54,4 +72,5 @@ module rec Types =
                 |>sqrt 
     
 
-    
+//---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- 
+// END OF CODE   

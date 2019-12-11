@@ -343,7 +343,7 @@ module Autoencoder =
                 let pred = feedForward lvl1                                                                             // Predicted values of level 2
                 let r = Array.copy lvl1.featureLayer.nodes                                                              // Copy nodes
                 r,classifications.[n]                                                                                   // Return to training set
-            )
+            ) |> Seq.toArray
 
         // Predict the training level (1 auto-encoder layer)
         printfn "Training Level Prediction"                                                                             // Print message
@@ -398,7 +398,7 @@ module Autoencoder =
                 let pred = feedForward lvl1                                                                             // Predicted values of level 2
                 let r = Array.copy lvl1.featureLayer.nodes 
                 r,r
-            )
+            ) |> Seq.toArray
 
         // Train the level 2 auto-encoder (2 auto-encoder layer)
         printfn "Training Level 2"                                                                                      // Print message   
@@ -413,7 +413,7 @@ module Autoencoder =
                 let pred = feedForward lvl2                                                                             // Predicted values of level 2
                 let r = Array.copy lvl2.featureLayer.nodes                                                              // Copy nodes
                 r,classifications.[n]                                                                                   // Return to training set
-            )
+            ) |> Seq.toArray
 
         printfn "Training Level Prediction"                                                                             // Print message
         for i = 0 to trainingCount do                                                                                   // Iterate trainingCount times
@@ -468,7 +468,7 @@ module Autoencoder =
                 let pred = feedForward lvl1                                                                             // Predicted values of level 2
                 let r = Array.copy lvl1.featureLayer.nodes 
                 r,r
-            )
+            ) |> Seq.toArray
 
         // Train the level 2 auto-encoder (2 auto-encoder layer)
         printfn "Training Level 2"                                                                                      // Print message
@@ -483,7 +483,7 @@ module Autoencoder =
                 let pred = feedForward lvl2                                                                             // Predicted values of level 2
                 let r = Array.copy lvl2.featureLayer.nodes
                 r,r
-            )
+            ) |> Seq.toArray
 
         // Train the level 3 auto-encoder (3 auto-encoder layer)
         printfn "Training Level 3"                                                                                      // Print message
@@ -498,7 +498,7 @@ module Autoencoder =
                 let pred = feedForward lvl3                                                                             // Predicted values of level 2
                 let r = Array.copy lvl3.featureLayer.nodes 
                 r,classifications.[n]
-            )
+            ) |> Seq.toArray
 
         printfn "Training Level Prediction"                                                                             // Print message
         for i = 0 to trainingCount do                                                                                   // Iterate trainingCount times
@@ -583,11 +583,11 @@ module Main =
         // Run through the 1, 2, and 3 auto-encoder layer configurations
         do
             dsmd1
-            |> testSAEWithFold (make1lvlSAE 2000 1.f 8 5 3)                     // 1 auto-encoder layer
+            |> testSAEWithFold "8 5 3" (make1lvlSAE 2000 1.f 8 5 3)                     // 1 auto-encoder layer
             dsmd1
-            |> testSAEWithFold (make2lvlSAE 2000 1.f 8 5 4 3)                   // 2 auto-encoder layers
+            |> testSAEWithFold "8 5 4 3" (make2lvlSAE 2000 1.f 8 5 4 3)                   // 2 auto-encoder layers
             dsmd1
-            |> testSAEWithFold (make3lvlSAE 2000 1.f 8 6 5 4 3)                 // 3 auto-encoder layers
+            |> testSAEWithFold "8 6 5 4 3" (make3lvlSAE 2000 1.f 8 6 5 4 3)                 // 3 auto-encoder layers
         
         0
 

@@ -105,7 +105,8 @@ module Datasets =
             |> Seq.map snd
             |> Seq.distinct
             |> Seq.sort
-            |> Seq.toArray                
+            |> Seq.toArray  
+
         let metadata:DataSetMetadata = 
             { new DataSetMetadata with
                 member _.getRealAttributeNodeIndex idx = if idx > realIndexes.Count then failwithf "index %d is outside of range of real attributes" idx else idx 
