@@ -6,6 +6,9 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Include="Code\SIMD.fs" />
+    <Compile Include="Code\tools.fs" />
+    <Compile Include="Code\Types.fs" />
     <Compile Include="Code/Program.fs" />
   </ItemGroup>
 
