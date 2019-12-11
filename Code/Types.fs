@@ -1,4 +1,4 @@
-﻿namespace Project4 
+﻿namespace SAE_NN
 module rec Types =
 
 // OBJECTS

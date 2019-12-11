@@ -1,8 +1,11 @@
-﻿namespace RNN
+﻿namespace SAE_NN
 (*
 #load "C:/work/snippets/Clipboard.fsx"
 open Clipboard
 *)
+
+open Types
+open Datasets
 
 module Autoencoder =
 
@@ -325,7 +328,7 @@ module Autoencoder =
                 b.[j,i] <- a.[j,i]
 
     let make1lvlSAE trainingCount learningRate inputLayerSize featureCount outputLayerSize (classifications:float32[][]) trainingSetOriginal = 
-        let classifications = trainingSetOrigina
+        let classifications = trainingSetOriginal |> Seq.map 
         let trainingSet = trainingSetOriginal |> Seq.map 
         let lvl1 = Network.Create rand_uniform_1m_1 [|inputLayerSize;featureCount;inputLayerSize|]                              // Auto-encoder Level 1
         let lvlo = Network.Create rand_uniform_1m_1 [|featureCount;outputLayerSize|]                                   // Auto-encoder Level 3
