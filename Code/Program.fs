@@ -324,13 +324,15 @@ module Autoencoder =
             for i = 0 to a.GetLength(1)-1 do
                 b.[j,i] <- a.[j,i]
 
-    let make1lvlSAE trainingCount learningRate inputLayerSize featureCount outputLayerSize (classifications:float32[][]) trainingSet = 
+    let make1lvlSAE trainingCount learningRate inputLayerSize featureCount outputLayerSize (classifications:float32[][]) trainingSetOriginal = 
+        let classifications = trainingSetOrigina
+        let trainingSet = trainingSetOriginal |> Seq.map 
         let lvl1 = Network.Create rand_uniform_1m_1 [|inputLayerSize;featureCount;inputLayerSize|]                              // Auto-encoder Level 1
         let lvlo = Network.Create rand_uniform_1m_1 [|featureCount;outputLayerSize|]                                   // Auto-encoder Level 3
 
         // Train the level 1 auto-encoder (1 auto-encoder layer)
-        for i = 0 to 10000 do
-            let avgLoss = train 1.f lvl1 trainingSet distanceSquaredArray
+        for i = 0 to trainingCount do
+            let avgLoss = train learningRate lvl1 trainingSet distanceSquaredArray
             if i%1000 = 0 then
                 printfn "%d: %f" i avgLoss
 
@@ -342,8 +344,8 @@ module Autoencoder =
                 r,classifications.[n]
             )
 
-        for i = 0 to 10000 do
-            let avgLoss = train 1.f lvlo trainingSet' distanceSquaredArray
+        for i = 0 to trainingCount do
+            let avgLoss = train learningRate lvlo trainingSet' distanceSquaredArray
             if i%1000 = 0 then
                 printfn "%d: %f" i avgLoss
 
@@ -358,6 +360,11 @@ module Autoencoder =
                 }
             network.expectedOutputs.[network.expectedOutputs.Length-1] <- 1.f
             network
+
+        for i = 0 to trainingCount do
+            let avgLoss = train learningRate lvlo trainingSet' distanceSquaredArray
+            if i%1000 = 0 then
+                printfn "%d: %f" i avgLoss
         stackedAutoEncoder
 
 
@@ -460,7 +467,6 @@ module Autoencoder =
         |> toClipboard
 
         network.connections.[1].weights |> sprintf "%A"
-
 
 
 
