@@ -1,37 +1,56 @@
-﻿namespace SAE_NN
+﻿//---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- 
+//
+//  CSCI 447 - Machine Learning
+//  Extra Credit Assignment, Fall 2019
+//  Chris Major, Farshina Nazrul-Shimim, Tysen Radovich, Allen Simpson
+//
+//  Implementation of a stacked auto-encoder neural network
+//
+//---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- 
+
+
+// NAMESPACE
+//---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- 
+namespace SAE_NN
+
+// Open modules from local directory
 open Types
 open Extensions
+
+
+// DATASETS MODULE
+//---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- 
 module Datasets =
 
-    
-    // How to get a dataset from a file
+    // Function to get a dataset from a file
     let fetchTrainingSet filePath isCommaSeperated hasHeader =
-         System.IO.File.ReadAllLines(filePath)                           // this give you back a set of line from the file (replace with your directory)
-         |> Seq.map (fun v -> v.Trim())                                  // trim the sequence
-         |> Seq.filter (System.String.IsNullOrWhiteSpace >> not)         // filter out and remove white space
-         |> Seq.filter (fun line ->                                      // take each line
-             if isCommaSeperated && line.StartsWith(";") then false      // separate by commas or semicolons
+         System.IO.File.ReadAllLines(filePath)                                          // Read back a set of lines from the file 
+         |> Seq.map (fun v -> v.Trim())                                                 // Trim the sequence
+         |> Seq.filter (System.String.IsNullOrWhiteSpace >> not)                        // Filter out and remove white space
+         |> Seq.filter (fun line ->                                                     // Filter out each line
+             if isCommaSeperated && line.StartsWith(";") then false                     // Is it separated by commas or semicolons?
              else true
              )   
-         |> (if hasHeader then Seq.skip 1 else id)                       // separate headers from data
-         |> Seq.map (fun line -> line.Split(if isCommaSeperated then ',' else ';') |> Array.map (fun value -> value.Trim() |> System.String.Intern)) // this give you an array of elements from the comma seperated fields. We trim to make sure that any white space is removed.
+         |> (if hasHeader then Seq.skip 1 else id)                                      // Separate headers from data
+         |> Seq.map (fun line -> line.Split(if isCommaSeperated then ',' else ';') |> Array.map (fun value -> value.Trim() |> System.String.Intern))    // Get an array of elements from the comma seperated fields, make sure that any white space is removed.
     
-    // Write out functions
-     
-    let logistic (x:float32) = (1./(1.+System.Math.Exp(float -x) ))|>float32    //Logistic Fn
+    // Logistic function for normalization
+    let logistic (x:float32) = (1./(1.+System.Math.Exp(float -x) ))|>float32    
 
-    ////GET THE DATASET
+    // Function to get the full dataset
     let fullDataset filename (classIndex:int option) (regressionIndex : int option) (pValue:float) isCommaSeperated hasHeader= 
-        let classIndex,regressionIndex = 
-            match classIndex,regressionIndex with 
+        let classIndex, regressionIndex =                                               // Is it classification or regression?
+            match classIndex,regressionIndex with                                       // Match based on user's decision
             | None,None     -> -1,-1
             | None,Some a   -> -1,a 
             | Some a,None   -> a,-1
             | Some a,Some b -> a,b
-        let dataSet = fetchTrainingSet filename isCommaSeperated hasHeader
+        let dataSet = fetchTrainingSet filename isCommaSeperated hasHeader              // Get the training set
       
-        ////Need to comment this!
+        // Grab the columns of the data file
         let columns = dataSet|> Seq.transpose|> Seq.toArray 
+
+        // Sort between real and categorical indices
         let realIndexes,categoricalIndexes = 
             columns
             |>Seq.mapi (fun i c -> i,c)
@@ -191,16 +210,8 @@ module Datasets =
             inData, expectedData
         )
         |> Seq.toArray
-    //let generateFoldInputsAndOutputs (dataSet:Point seq) =
-    //    let generateTrainingSetInputs (dataSet:Point seq) = 
-    //        dataSet
-    //        |> Seq.map(fun p -> getInputLayerFromPoint p) |> Seq.toArray
-    
-    //    let generateTrainingSetOutputs (dataSet:Point seq) =
-    //        dataSet
-    //        |> Seq.map(fun p -> getOutputLayerFromPoint p) |> Seq.toArray
-    //    getRandomFolds 10 dataSet 
-    //    |> Array.map (fun fo -> generateTrainingSetInputs fo,generateTrainingSetOutputs fo)
+
+
     let generateFolds dsdm =
         let dataSet = getTrainingSet dsdm
         let folds = getRandomFolds 10 dataSet
@@ -213,3 +224,5 @@ module Datasets =
         |> Seq.toArray
     
    
+//---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- 
+// END OF CODE

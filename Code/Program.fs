@@ -1,10 +1,10 @@
 ﻿//---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- 
 //
 //  CSCI 447 - Machine Learning
-//  Assignment #4, Fall 2019
+//  Extra Credit Assignment, Fall 2019
 //  Chris Major, Farshina Nazrul-Shimim, Tysen Radovich, Allen Simpson
 //
-//  Functions for the implementation of several population algorithms to train a feedforward neural network
+//  Implementation of a stacked auto-encoder neural network
 //
 //---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- 
 
