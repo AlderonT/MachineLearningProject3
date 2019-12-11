@@ -556,6 +556,8 @@ module Main =
         let dsmd6 = (fullDataset @"..\Data\winequality-red.csv" None (Some 9) 2. false true)                // Wine Quality (Red)
         let dsmd7 = (fullDataset @"..\Data\winequality-white.csv" None (Some 11) 2. false true)             // Wine Quality (White)
 
+        dsmd2 |> (fun (x,u) -> u.inputNodeCount,u.outputNodeCount)
+
         // Test the Stacked Auto-encoder
         let testSAEWithFold msg (makeSAE:_ -> Network) dsmd =            
             printfn "Processing SAE with %s" msg                                                            // Print message
@@ -563,6 +565,7 @@ module Main =
             let folds = generateFolds dsmd                                                                  // Generate K-folds
             let mse =                                                                                       // Calculate mean square error for each fold
                 folds
+                |> Seq.take 1
                 |> Seq.mapi (fun fold (trainingSet,validationSet) ->                                        // Map folds to training set and validation set
                     async {
                         let sae = makeSAE trainingSet                                                       // Make the SAE training set
@@ -581,14 +584,22 @@ module Main =
     
             
         // Run through the 1, 2, and 3 auto-encoder layer configurations
-        do
-            dsmd1
-            |> testSAEWithFold "8 5 3" (make1lvlSAE 2000 1.f 8 5 3)                     // 1 auto-encoder layer
-            dsmd1
-            |> testSAEWithFold "8 5 4 3" (make2lvlSAE 2000 1.f 8 5 4 3)                   // 2 auto-encoder layers
-            dsmd1
-            |> testSAEWithFold "8 6 5 4 3" (make3lvlSAE 2000 1.f 8 6 5 4 3)                 // 3 auto-encoder layers
+        //do
+        //    dsmd1
+        //    |> testSAEWithFold "8 5 3" (make1lvlSAE 2000 1.f 8 5 3)                     // 1 auto-encoder layer
+        //    dsmd1
+        //    |> testSAEWithFold "8 5 4 3" (make2lvlSAE 2000 1.f 8 5 4 3)                   // 2 auto-encoder layers
+        //    dsmd1
+        //    |> testSAEWithFold "8 6 5 4 3" (make3lvlSAE 2000 1.f 8 6 5 4 3)                 // 3 auto-encoder layers
         
+        do
+            dsmd2
+            |> testSAEWithFold "21 12 4" (make1lvlSAE 2000 1.f 21 12 4)                     // 1 auto-encoder layer
+            dsmd2
+            |> testSAEWithFold "21 12 4 4" (make2lvlSAE 2000 1.f 21 12 4 4)                   // 2 auto-encoder layers
+            dsmd2
+            |> testSAEWithFold "21 12 5 4 4" (make3lvlSAE 2000 1.f 21 12 5 4 4)                 // 3 auto-encoder layers
+
         0
 
 
