@@ -545,16 +545,16 @@ module Main =
 
     // Main function
     let main argv =
-        System.Environment.CurrentDirectory <- __SOURCE_DIRECTORY__
+        //System.Environment.CurrentDirectory <- __SOURCE_DIRECTORY__
 
         // filename classIndex regressionIndex pValue isCommaSeperated hasHeader
-        let dsmd1 = (fullDataset @"..\Data\abalone.data" (Some 0) None 2. true false)                       // Abalone
-        let dsmd2 = (fullDataset @"..\Data\car.data" (Some 6) None 2. true false)                           // Car
-        let dsmd3 = (fullDataset @"..\Data\forestfires.csv" None (Some 12) 2. true true)                    // Forest Fires
-        let dsmd4 = (fullDataset @"..\Data\machine.data" None (Some 9) 2. true false )                      // Machine
-        let dsmd5 = (fullDataset @"..\Data\segmentation.data" (Some 0) None 2. true true)                   // Segmentation
-        let dsmd6 = (fullDataset @"..\Data\winequality-red.csv" None (Some 9) 2. false true)                // Wine Quality (Red)
-        let dsmd7 = (fullDataset @"..\Data\winequality-white.csv" None (Some 11) 2. false true)             // Wine Quality (White)
+        let dsmd1 = (fullDataset @"..\..\..\Data\abalone.data" (Some 0) None 2. true false)                       // Abalone
+        let dsmd2 = (fullDataset @"..\..\..\Data\car.data" (Some 6) None 2. true false)                           // Car
+        let dsmd3 = (fullDataset @"..\..\..\Data\forestfires.csv" None (Some 12) 2. true true)                    // Forest Fires
+        let dsmd4 = (fullDataset @"..\..\..\Data\machine.data" None (Some 9) 2. true false )                      // Machine
+        let dsmd5 = (fullDataset @"..\..\..\Data\segmentation.data" (Some 0) None 2. true true)                   // Segmentation
+        let dsmd6 = (fullDataset @"..\..\..\Data\winequality-red.csv" None (Some 9) 2. false true)                // Wine Quality (Red)
+        let dsmd7 = (fullDataset @"..\..\..\Data\winequality-white.csv" None (Some 11) 2. false true)             // Wine Quality (White)
 
         dsmd2 |> (fun (x,u) -> u.inputNodeCount,u.outputNodeCount)
 
