@@ -1,8 +1,23 @@
 ﻿namespace SAE_NN
 open Types
-
+open Extensions
 module Datasets =
 
+    
+    // How to get a dataset from a file
+    let fetchTrainingSet filePath isCommaSeperated hasHeader =
+         System.IO.File.ReadAllLines(filePath)                           // this give you back a set of line from the file (replace with your directory)
+         |> Seq.map (fun v -> v.Trim())                                  // trim the sequence
+         |> Seq.filter (System.String.IsNullOrWhiteSpace >> not)         // filter out and remove white space
+         |> Seq.filter (fun line ->                                      // take each line
+             if isCommaSeperated && line.StartsWith(";") then false      // separate by commas or semicolons
+             else true
+             )   
+         |> (if hasHeader then Seq.skip 1 else id)                       // separate headers from data
+         |> Seq.map (fun line -> line.Split(if isCommaSeperated then ',' else ';') |> Array.map (fun value -> value.Trim() |> System.String.Intern)) // this give you an array of elements from the comma seperated fields. We trim to make sure that any white space is removed.
+    
+    // Write out functions
+     
 
     ////GET THE DATASET
     let fullDataset filename (classIndex:int option) (regressionIndex : int option) (pValue:float) isCommaSeperated hasHeader= 

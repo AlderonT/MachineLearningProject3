@@ -334,6 +334,7 @@ module Autoencoder =
         let lvlo = Network.Create rand_uniform_1m_1 [|featureCount;outputLayerSize|]                                   // Auto-encoder Level 3
 
         // Train the level 1 auto-encoder (1 auto-encoder layer)
+        printfn "Training Level 1"
         for i = 0 to trainingCount do
             let avgLoss = train learningRate lvl1 trainingSet distanceSquaredArray
             if i%1000 = 0 then
@@ -347,6 +348,7 @@ module Autoencoder =
                 r,classifications.[n]
             )
 
+        printfn "Training Level Prediction"
         for i = 0 to trainingCount do
             let avgLoss = train learningRate lvlo trainingSet' distanceSquaredArray
             if i%1000 = 0 then
@@ -364,6 +366,7 @@ module Autoencoder =
             network.expectedOutputs.[network.expectedOutputs.Length-1] <- 1.f
             network
 
+        printfn "Fine Turning SAE"
         for i = 0 to trainingCount do
             let avgLoss = train learningRate stackedAutoEncoder trainingSetOriginal distanceSquaredArray
             if i%1000 = 0 then
@@ -378,6 +381,7 @@ module Autoencoder =
         let lvlo = Network.Create rand_uniform_1m_1 [|featureCount2;outputLayerSize|]                                   // Auto-encoder Level 3
 
         // Train the level 1 auto-encoder (1 auto-encoder layer)
+        printfn "Training Level 1"
         for i = 0 to trainingCount do
             let avgLoss = train learningRate lvl1 trainingSet distanceSquaredArray
             if i%1000 = 0 then
@@ -392,6 +396,7 @@ module Autoencoder =
             )
 
         // Train the level 2 auto-encoder (2 auto-encoder layer)
+        printfn "Training Level 2"
         for i = 0 to trainingCount do
             let avgLoss = train learningRate lvl2 trainingSet' distanceSquaredArray
             if i%1000 = 0 then
@@ -405,6 +410,7 @@ module Autoencoder =
                 r,classifications.[n]
             )
 
+        printfn "Training Level Prediction"
         for i = 0 to trainingCount do
             let avgLoss = train learningRate lvlo trainingSet'' distanceSquaredArray
             if i%1000 = 0 then
@@ -424,6 +430,7 @@ module Autoencoder =
             network.expectedOutputs.[network.expectedOutputs.Length-1] <- 1.f
             network
 
+        printfn "Fine Turning SAE"
         for i = 0 to trainingCount do
             let avgLoss = train learningRate stackedAutoEncoder trainingSetOriginal distanceSquaredArray
             if i%1000 = 0 then
@@ -439,6 +446,7 @@ module Autoencoder =
         let lvlo = Network.Create rand_uniform_1m_1 [|featureCount3;outputLayerSize|]                                   // Auto-encoder Level 3
 
         // Train the level 1 auto-encoder (1 auto-encoder layer)
+        printfn "Training Level 1"
         for i = 0 to trainingCount do
             let avgLoss = train learningRate lvl1 trainingSet distanceSquaredArray
             if i%1000 = 0 then
@@ -453,6 +461,7 @@ module Autoencoder =
             )
 
         // Train the level 2 auto-encoder (2 auto-encoder layer)
+        printfn "Training Level 2"
         for i = 0 to trainingCount do
             let avgLoss = train learningRate lvl2 trainingSet' distanceSquaredArray
             if i%1000 = 0 then
@@ -467,6 +476,7 @@ module Autoencoder =
             )
 
         // Train the level 3 auto-encoder (3 auto-encoder layer)
+        printfn "Training Level 3"
         for i = 0 to trainingCount do
             let avgLoss = train learningRate lvl3 trainingSet'' distanceSquaredArray
             if i%1000 = 0 then
@@ -480,6 +490,7 @@ module Autoencoder =
                 r,classifications.[n]
             )
 
+        printfn "Training Level Prediction"
         for i = 0 to trainingCount do
             let avgLoss = train learningRate lvlo trainingSet''' distanceSquaredArray
             if i%1000 = 0 then
@@ -501,6 +512,7 @@ module Autoencoder =
             network.expectedOutputs.[network.expectedOutputs.Length-1] <- 1.f
             network
 
+        printfn "Fine Turning SAE"
         for i = 0 to trainingCount do
             let avgLoss = train learningRate stackedAutoEncoder trainingSetOriginal distanceSquaredArray
             if i%1000 = 0 then
@@ -522,26 +534,24 @@ module Main =
         let dsmd6 = (fullDataset @"..\Data\winequality-red.csv" None (Some 9) 2. false true)
         let dsmd7 = (fullDataset @"..\Data\winequality-white.csv" None (Some 11) 2. false true)
 
-        let testSAEWithFold (makeSAE:_ -> Network) trainingSet =
-            let folds = getFolds dsmd1
-            folds
-            |> Seq.mapi (fun fold (trainingSet,validationSet) ->
-                let sae = makeSAE trainingSet
-                let saeErr = check sae validationSet distanceSquaredArray
-                saeErr
-                printfn "Fold [%d] error: %f" saeErr
-            )
-            |> Seq.average
-
+        let testSAEWithFold (makeSAE:_ -> Network) dsmd =            
+            let folds = getFolds dsmd
+            let mse =
+                folds
+                |> Seq.mapi (fun fold (trainingSet,validationSet) ->
+                    let sae = makeSAE trainingSet
+                    let saeErr = check sae validationSet distanceSquaredArray
+                    saeErr
+                    printfn "Fold [%d] error: %f" saeErr
+                )
+                |> Seq.average
+            printfn "MSE: %f" mse
+    
             
 
         do
-            let folds = getFolds dsmd1
-            folds
-            |> Seq.mapi (fun fold (trainingSet,validationSet) ->
-                let sae1 = make1lvlSAE 2000 1.f 8 5 3 trainingSet
-                let saeErr = 
-            )
+            dsmd1
+            |> testSAEWithFold (make1lvlSAE 2000 1.f 8 5 3)
         
        Autoencoder.test()
        0
