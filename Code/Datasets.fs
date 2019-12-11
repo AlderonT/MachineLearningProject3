@@ -167,15 +167,34 @@ module Datasets =
                 generate (j+1)                              //increment j and run again
         generate 0                                          //calls the generate function
 
-    let generateFoldInputsAndOutputs (dataSet:Point seq) =
-        let generateTrainingSetInputs (dataSet:Point seq) = 
-            dataSet
-            |> Seq.map(fun p -> getInputLayerFromPoint p) |> Seq.toArray
+    let getTrainingSet (dsdm:Point[]*_) =
+        let dataSet,_ = dsdm
+        dataSet
+        |> Seq.map (fun p ->
+            let inData = getInputLayerFromPoint p
+            let expectedData = getOutputLayerFromPoint p
+            inData, expectedData
+        )
+        |> Seq.toArray
+    //let generateFoldInputsAndOutputs (dataSet:Point seq) =
+    //    let generateTrainingSetInputs (dataSet:Point seq) = 
+    //        dataSet
+    //        |> Seq.map(fun p -> getInputLayerFromPoint p) |> Seq.toArray
     
-        let generateTrainingSetOutputs (dataSet:Point seq) =
-            dataSet
-            |> Seq.map(fun p -> getOutputLayerFromPoint p) |> Seq.toArray
-        getRandomFolds 10 dataSet 
-        |> Array.map (fun fo -> generateTrainingSetInputs fo,generateTrainingSetOutputs fo)
+    //    let generateTrainingSetOutputs (dataSet:Point seq) =
+    //        dataSet
+    //        |> Seq.map(fun p -> getOutputLayerFromPoint p) |> Seq.toArray
+    //    getRandomFolds 10 dataSet 
+    //    |> Array.map (fun fo -> generateTrainingSetInputs fo,generateTrainingSetOutputs fo)
+    let generateFolds dsdm =
+        let dataSet = getTrainingSet dsdm
+        let folds = getRandomFolds 10 dataSet
+        folds
+        |> Seq.mapi (fun i v ->
+            let trainingSet = folds |> Seq.filterWithIndex (fun i' _ -> i <> i') |> Seq.collect id |> Seq.toArray
+            let validationSet = v
+            trainingSet, validationSet
+        )
+        |> Seq.toArray
     
    

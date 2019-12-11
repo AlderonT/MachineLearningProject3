@@ -507,120 +507,41 @@ module Autoencoder =
                 printfn "%d: %f" i avgLoss
         stackedAutoEncoder
 
-    let test() =
-        let trainingSet = testData2()
-        let classifications : float32[][] = Array.empty
-        //let trainingSet, originalData =
-        //    let ts = trainingSet |> Array.map (fun (a,b,_) -> a,b)
-        //    let od = trainingSet |> Array.map (fun (_,_,c) -> c)
-        //    ts,od
-        // pretty damn good approximation of XOR
-        let xorNetwork = Network.Load "Y2ZgYGACYhYo7Wuxw4HJrvXAbdM79i5TGxw04z0cfB+sOZD0cJnD2ZRLB6z2qR0Qv7jP4fLZMw7LRYQP6D874FA7da2D2cQ7B2xarhzIepdnf7Rty4GUwj0Hpt645DD95D2H/Ofz9gMA"
-        // use with testData2
-        let network = Network.Create rand_uniform_1m_1 [|2;1;2|]
-        
-
-
-        let lvl1 = Network.Create rand_uniform_1m_1 [|100;50;100|]                              // Auto-encoder Level 1
-        let lvl2 = Network.Create rand_uniform_1m_1 [|50;10;50|]                                // Auto-encoder Level 2
-        let lvl3 = Network.Create rand_uniform_1m_1 [|10;10|]                                   // Auto-encoder Level 3
-
-        // Train the level 1 auto-encoder (1 auto-encoder layer)
-        for i = 0 to 10000 do
-            let avgLoss = train 1.f lvl1 trainingSet distanceSquaredArray
-            if i%1000 = 0 then
-                printfn "%d: %f" i avgLoss
-        let trainingSet' =                                                                      // Training set to feed into the next level
-            trainingSet                                                                     
-            |> Seq.map (fun (i,_) ->                                                            // Map the values of the reduced set
-                let pred = feedForward lvl1                                                     // Predicted values of level 1
-                let r = Array.copy pred 
-                r,r
-            )
-
-        // Train the level 2 auto-encoder (2 auto-encoder layers)
-        for i = 0 to 10000 do
-            let avgLoss = train 1.f lvl2 trainingSet' distanceSquaredArray
-            if i%1000 = 0 then
-                printfn "%d: %f" i avgLoss
-        let trainingSet'' =                                                                     // Training set to feed into the next level
-            trainingSet'
-            |> Seq.mapi (fun n (i,_) ->                                                         // Map the values of the reduced set
-                let pred = feedForward lvl2                                                     // Predicted values of level 2
-                let r = Array.copy pred 
-                r,classifications.[n]
-            )
-
-        for i = 0 to 10000 do
-            let avgLoss = train 1.f lvl3 trainingSet'' distanceSquaredArray
-            if i%1000 = 0 then
-                printfn "%d: %f" i avgLoss
-
-        let stackedAutoEncoder = 
-            let cm1 = lvl1.connections.[0]                                                      // Connection matrix for Level 1 (goes to lvl2)
-            let cm2 = lvl2.connections.[0]                                                      // Connection matrix for Level 2 (goes to lvl3)   
-            let cm3 = lvl3.connections.[0]                                                      // Connection matrix for Level 3 (goes to output)
-            let cm2 = {cm2 with inputLayer = cm1.outputLayer;}                                  // Connect 2's CM with 1's output layer
-            let cm3 = {cm3 with inputLayer = cm2.outputLayer;}                                  // Connect 3's CM with 2's output layer
-            let network =                                                                       // Create the network
-                {
-                    connections = [|cm1;cm2;cm3|]                                                   // Connect 1's CM, 2's CM, and 3's CM
-                    expectedOutputs = Array.zeroCreate cm3.outputLayer.Length                       // Create array of expected outputs
-                }
-            network.expectedOutputs.[network.expectedOutputs.Length-1] <- 1.f
-            network
-
-        let loss = check network trainingSet distanceSquaredArray
-
-        trainingSet
-        |> Seq.mapi (fun n (i,e) ->
-            network.LoadExpectedOutput(e)
-            network.LoadInput(i)
-            let pred = feedForward network
-            let i', p' = Array.zeroCreate i.Length, Array.zeroCreate pred.Length
-            inverseLogistics i.Length i i'
-            inverseLogistics (pred.Length-1) pred p'
-            i,pred,i',p'
-        )
-        |> Seq.map (fun (i,p,i',p') -> sprintf "%f\t%f\t%f\t%f\t%f\t%f\t%f\t%f" i.[0] i.[1] p.[0] p.[1] i'.[0] i'.[1] p'.[0] p'.[1])
-        |> String.concat "\n"
-        |> toClipboard
-
-        //let loss = check xorNetwork trainingSet distanceSquaredArray
-        for i = 0 to 100000 do
-            let avgLoss = train 1.f network trainingSet distanceSquaredArray
-            if i%1000 = 0 then
-                printfn "%d: %f" i avgLoss
-
-        // now that we've trained the autoencoder, lets take a look at the extracted features
-        trainingSet
-        |> Seq.mapi (fun n (i,e) ->
-            network.LoadExpectedOutput(e)
-            network.LoadInput(i)
-            feedForward network |> ignore
-            let featureLayer = network.featureLayer
-            i,featureLayer.nodes
-        )
-        |> Seq.map (fun (i,f) -> sprintf "%f\t%f\t%f" i.[0] i.[1] f.[0])
-        |> String.concat "\n"
-        |> toClipboard
-
-        network.connections.[1].weights |> sprintf "%A"
-
-
 
 module Main =
+    open Autoencoder
+    open DataSets
     [<EntryPoint>]
     let main argv =
-       //let dsmd1 = (fullDataset @"..\Data\abalone.data" (Some 0) None 2. true false) //filename classIndex regressionIndex pValue isCommaSeperated hasHeader
-       //let dsmd2 = (fullDataset @"..\Data\car.data" (Some 6) None 2. true false)
-       //let dsmd3 = (fullDataset @"..\Data\forestfires.csv" None (Some 12) 2. true true)
-       //let dsmd4 = (fullDataset @"..\Data\machine.data" None (Some 9) 2. true false )
-       //let dsmd5 = (fullDataset @"..\Data\segmentation.data" (Some 0) None 2. true true)
-       //let dsmd6 = (fullDataset @"..\Data\winequality-red.csv" None (Some 9) 2. false true)
-       //let dsmd7 = (fullDataset @"..\Data\winequality-white.csv" None (Some 11) 2. false true)
-       //let datasets = [|dsmd1;dsmd2;dsmd3;dsmd4;dsmd5;dsmd6;dsmd7|]
-       ////let ds1,metadata = (fullDataset @"D:\Fall2019\Machine Learning\MachineLearningProject3\Data\car.data" (Some 6) None 2. true false) //filename classIndex regressionIndex pValue isCommaSeperated hasHeader
+        System.Environment.CurrentDirectory <- __SOURCE_DIRECTORY__
+        let dsmd1 = (fullDataset @"..\Data\abalone.data" (Some 0) None 2. true false) //filename classIndex regressionIndex pValue isCommaSeperated hasHeader
+        let dsmd2 = (fullDataset @"..\Data\car.data" (Some 6) None 2. true false)
+        let dsmd3 = (fullDataset @"..\Data\forestfires.csv" None (Some 12) 2. true true)
+        let dsmd4 = (fullDataset @"..\Data\machine.data" None (Some 9) 2. true false )
+        let dsmd5 = (fullDataset @"..\Data\segmentation.data" (Some 0) None 2. true true)
+        let dsmd6 = (fullDataset @"..\Data\winequality-red.csv" None (Some 9) 2. false true)
+        let dsmd7 = (fullDataset @"..\Data\winequality-white.csv" None (Some 11) 2. false true)
+
+        let testSAEWithFold (makeSAE:_ -> Network) trainingSet =
+            let folds = getFolds dsmd1
+            folds
+            |> Seq.mapi (fun fold (trainingSet,validationSet) ->
+                let sae = makeSAE trainingSet
+                let saeErr = check sae validationSet distanceSquaredArray
+                saeErr
+                printfn "Fold [%d] error: %f" saeErr
+            )
+            |> Seq.average
+
+            
+
+        do
+            let folds = getFolds dsmd1
+            folds
+            |> Seq.mapi (fun fold (trainingSet,validationSet) ->
+                let sae1 = make1lvlSAE 2000 1.f 8 5 3 trainingSet
+                let saeErr = 
+            )
         
        Autoencoder.test()
        0
