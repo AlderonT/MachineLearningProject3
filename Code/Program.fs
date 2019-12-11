@@ -324,7 +324,7 @@ module Autoencoder =
             for i = 0 to a.GetLength(1)-1 do
                 b.[j,i] <- a.[j,i]
 
-    let make1lvlSAE inputLayerSize featureCount outputLayerSize (classifications:float32[][]) trainingSet = 
+    let make1lvlSAE trainingCount learningRate inputLayerSize featureCount outputLayerSize (classifications:float32[][]) trainingSet = 
         let lvl1 = Network.Create rand_uniform_1m_1 [|inputLayerSize;featureCount;inputLayerSize|]                              // Auto-encoder Level 1
         let lvlo = Network.Create rand_uniform_1m_1 [|featureCount;outputLayerSize|]                                   // Auto-encoder Level 3
 
