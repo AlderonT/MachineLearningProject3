@@ -170,442 +170,427 @@ module Autoencoder =
                 network                                                                                                 // Return the network                                                                                
 
 
+    // GENERAL FUNCTIONS
+    //---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- 
+
     // Function to calculate the dot product of x * M = r
     let dotProduct (x:float32[]) (M:float32[,]) (r:float32[]) = 
         if x.Length < M.GetLength(1) || r.Length < M.GetLength(0) then
-            failwithf "Can't dot x[%d] by M[%d,%d] to make r[%d] " x.Length (M.GetLength(0)) (M.GetLength(1)) r.Length
-        let width,height = M.GetLength(1), M.GetLength(0)
-        for j = 0 to height-1 do                                                        // we don't propagate to the bias
-            let mutable sum = 0.f
-            for i = 0 to width-1 do
-                sum <- sum + x.[i]*M.[j,i]
-            r.[j] <- sum
+            failwithf "ERROR: Can't dot x[%d] by M[%d,%d] to make r[%d]!" x.Length (M.GetLength(0)) (M.GetLength(1)) r.Length
+        let width,height = M.GetLength(1), M.GetLength(0)                                                                       // Get M width and height
+        for j = 0 to height-1 do                                                                                                // Don't propagate to the bias
+            let mutable sum = 0.f                                                                                               // Create sum value
+            for i = 0 to width-1 do                                                                                             // Iterate through M width
+                sum <- sum + x.[i]*M.[j,i]                                                                                      // Perform dot product 
+            r.[j] <- sum                                                                                                        // Store sum to output vector
 
+    // Function to compute the logistic
     let computeLogistic x =
-            let v = 1. / (1. + (System.Math.Exp(-(float x))))
-            float32 v
+            let v = 1. / (1. + (System.Math.Exp(-(float x))))                                                           // Compute the logistic
+            float32 v                                                                                                   // Return result as a float
 
-    let logistic length (x:float32[]) (r:float32[]) =                   //tells us how many elements of x to apply logistics to
-        if r.Length < length || x.Length < length then
-            failwithf "r[%d] is too short for x[%d]" r.Length x.Length
-        for i = 0 to length-1 do
-            let x' = x.[i]
-            let v = 1. / (1. + (System.Math.Exp(-(float x'))))
-            r.[i] <- float32 v
+    // Function to compute the logistic over an array
+    let logistic length (x:float32[]) (r:float32[]) =                    
+        if r.Length < length || x.Length < length then                                                                  // If r and x are too small ...
+            failwithf "ERROR: r[%d] is too short for x[%d]!" r.Length x.Length                                          // ... error!
+        for i = 0 to length-1 do                                                                                        // Iterate through the arrays
+            let x' = x.[i]                                                                                              // Get the x value
+            let v = 1. / (1. + (System.Math.Exp(-(float x'))))                                                          // Calculate the logistic function
+            r.[i] <- float32 v                                                                                          // Store to the output vector
 
+    // Function to compute the inverse logistic
     let inverseLogistics length (x:float32[]) (r:float32[]) =
-        for i = 0 to length-1 do
-            let x' = float x.[i]
-            let v = -System.Math.Log((1./x') - 1.)
-            r.[i] <- float32 v
+        for i = 0 to length-1 do                                                                                        // Iterate through the arrays
+            let x' = float x.[i]                                                                                        // Get the x value
+            let v = -System.Math.Log((1./x') - 1.)                                                                      // Calculate the inverse logistic function
+            r.[i] <- float32 v                                                                                          // Store to the output vector
 
+    // Function to calculate the delta values of the output vector
+    let outputDeltas (outputs:float32[]) (expected:float32[]) (deltas:float32[]) = 
+        for i = 0 to expected.Length-1 do                                                                               // Iterate through the expected length
+            let o = outputs.[i]                                                                                         // Get the predicted output value
+            let t = expected.[i]                                                                                        // Get the expected output value
+            deltas.[i] <- (o-t)*o*(1.f-o)                                                                               // Calculate the difference
 
-    let outputDeltas (outputs:float32[]) (expected:float32[]) (deltas:float32[]) =  //here we have things set up so we needn't worry about the bias nodes
-        for i = 0 to expected.Length-1 do
-            let o = outputs.[i]
-            let t = expected.[i]
-            deltas.[i] <- (o-t)*o*(1.f-o)       //(output - target)*output*(1-output)
-    let innerDeltas (weights:float32[,]) (inputs:float32[]) (outputDeltas:float32[]) (deltas:float32[]) =   //this also deals with the bias node by nature of the weights' shape
-        let width, height = weights.GetLength(1), weights.GetLength(0)
-        for j = 0 to width-1 do
-            let mutable sum = 0.f
-            for l = 0 to height-1 do
-                let weight = weights.[l,j]
-                sum <- outputDeltas.[l]*weight + sum
-            deltas.[j] <- sum*inputs.[j]*(1.f-inputs.[j])
+    // Function to calculate the delta values of the input vector  
+    let innerDeltas (weights:float32[,]) (inputs:float32[]) (outputDeltas:float32[]) (deltas:float32[]) =  
+        let width, height = weights.GetLength(1), weights.GetLength(0)                                                  // Get weight matrix width and height
+        for j = 0 to width-1 do                                                                                         // Iterate through matrix width
+            let mutable sum = 0.f                                                                                       // Initialize mutable sum
+            for l = 0 to height-1 do                                                                                    // Iterate through matrix height
+                let weight = weights.[l,j]                                                                              // Grab the weight value
+                sum <- outputDeltas.[l]*weight + sum                                                                    // Calculate the inner delta value
+            deltas.[j] <- sum*inputs.[j]*(1.f-inputs.[j])                                                               // Store to delta array value
            
-    let updateWeights learningRate (weights:float32[,]) (inputs:float32[]) (outputDeltas:float32[]) =   //since the weights' structure size is preset we don't need to worry about the bias node
-        let width, height = weights.GetLength(1), weights.GetLength(0)
-        for j = 0 to height-1 do
-            for i = 0 to width-1 do
-                let weight = weights.[j,i]
-                let delta = -learningRate*inputs.[i]*outputDeltas.[j]
-                weights.[j,i] <- weight + delta
+    // Function to update the weights of the weight matrix
+    let updateWeights learningRate (weights:float32[,]) (inputs:float32[]) (outputDeltas:float32[]) =   
+        let width, height = weights.GetLength(1), weights.GetLength(0)                                                  // Get weight matrix width and height
+        for j = 0 to height-1 do                                                                                        // Iterate through matrix height
+            for i = 0 to width-1 do                                                                                     // Iterate through matrix width
+                let weight = weights.[j,i]                                                                              // Grab the weight value
+                let delta = -learningRate*inputs.[i]*outputDeltas.[j]                                                   // Calculate the delta value
+                weights.[j,i] <- weight + delta                                                                         // Update the weight with the delta
 
+
+    // NEURAL NETWORK FUNCTIONS
+    //---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- 
+
+    // Function to run a feedforward neural network
     let feedForward (network: Network) =
-        for j = 0 to network.connections.Length-1 do
-            let cm = network.connections.[j]
-            let i = cm.inputLayer.nodes
-            let o = cm.outputLayer.nodes
-            let w = cm.weights
-            dotProduct i w o
-            // don't compute the logistic of the bias node
-            logistic (o.Length-1) o o                       //make sure we don't apply logistics to the bias fn
-        network.outputLayer.nodes
+        for j = 0 to network.connections.Length-1 do                                                                    // Iterate through the connection matrix
+            let cm = network.connections.[j]                                                                            // Grab a connection at index j
+            let i = cm.inputLayer.nodes                                                                                 // Get the input nodes
+            let o = cm.outputLayer.nodes                                                                                // Get the output nodes
+            let w = cm.weights                                                                                          // Get the weights
+            dotProduct i w o                                                                                            // Calculate the dot product
+            logistic (o.Length-1) o o                                                                                   // Don't apply logistics to the bias fn
+        network.outputLayer.nodes                                                                                       // Return the outputs
 
+    // Function to perform backpropogation
     let backprop learningRate (network: Network) =
-        let outputLayer = network.outputLayer
-        outputDeltas outputLayer.nodes network.expectedOutputs outputLayer.deltas
-        for j = network.connections.Length-1 downto 1 do
-            let connectionMatrix = network.connections.[j]
-            let weights = connectionMatrix.weights
-            let inLayer = connectionMatrix.inputLayer
-            let outlayer = connectionMatrix.outputLayer
-            innerDeltas weights inLayer.nodes outlayer.deltas inLayer.deltas
-            updateWeights learningRate weights inLayer.nodes outlayer.deltas
-        let connectionMatrix = network.connections.[0]
-        updateWeights learningRate connectionMatrix.weights connectionMatrix.inputLayer.nodes connectionMatrix.outputLayer.deltas
+        let outputLayer = network.outputLayer                                                                                       // Get the output layer of the network
+        outputDeltas outputLayer.nodes network.expectedOutputs outputLayer.deltas                                                   // Calculate the output delta error
+        for j = network.connections.Length-1 downto 1 do                                                                            // Iterate through the connection matrix
+            let connectionMatrix = network.connections.[j]                                                                          // Grab a connection
+            let weights = connectionMatrix.weights                                                                                  // Grab the weights
+            let inLayer = connectionMatrix.inputLayer                                                                               // Grab the input layer
+            let outlayer = connectionMatrix.outputLayer                                                                             // Grab the output layer
+            innerDeltas weights inLayer.nodes outlayer.deltas inLayer.deltas                                                        // Calculate the inner delta errors
+            updateWeights learningRate weights inLayer.nodes outlayer.deltas                                                        // Update the weights
+        let connectionMatrix = network.connections.[0]                                                                              // Set a connection matrix based on the initial network
+        updateWeights learningRate connectionMatrix.weights connectionMatrix.inputLayer.nodes connectionMatrix.outputLayer.deltas   // Update the weights
         
-    //// LOSS FNS
-    //The array versions are sets up to only compare the number of nodes shared in common (because we aren't checking against the bias node)
-    let distanceSquared (x:float32) (x':float32) = let d = x-x' in d*d  //literally what is says on the tin can
-    let distanceSquaredArray (x:float32[]) (x':float32[]) =             //done over an entire array
-        let mutable sum = 0.f
-        let limit = min x.Length x'.Length
-        for i = 0 to limit-1 do
-            let d = x.[i] - x'.[i]
-            sum <- sum + d*d
-        sum
-    let mseArray (x:float32[]) (x':float32[]) =                         //the AVERAGE distance squared
-        let mutable sum = 0.f
-        let limit = min x.Length x'.Length
-        for i = 0 to limit-1 do
-            let d = x.[i] - x'.[i]
-            sum <- sum + d*d
-        sum/(float32 limit)
-    ////
-    // here we are doing the training
+
+    // LOSS FUNCTIONS
+    //---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- 
+
+    // Function to calculate the square distance
+    let distanceSquared (x:float32) (x':float32) = let d = x-x' in d*d  
+
+    // Function to calculate the square distance over an entire array
+    let distanceSquaredArray (x:float32[]) (x':float32[]) =             
+        let mutable sum = 0.f                                                               // Create a mutable sum value                                          
+        let limit = min x.Length x'.Length                                                  // Create limit based on smallest array dimension
+        for i = 0 to limit-1 do                                                             // Iterate
+            let d = x.[i] - x'.[i]                                                          // Get the difference value
+            sum <- sum + d*d                                                                // Update the sum
+        sum                                                                                 // Return the value
+
+    // Function to calculate the mean square error
+    let mseArray (x:float32[]) (x':float32[]) =                         
+        let mutable sum = 0.f                                                               // Create a mutable sum value    
+        let limit = min x.Length x'.Length                                                  // Create limit based on smallest array dimension
+        for i = 0 to limit-1 do                                                             // Iterate
+            let d = x.[i] - x'.[i]                                                          // Get the difference value
+            sum <- sum + d*d                                                                // Update the sum
+        sum/(float32 limit)                                                                 // Return the value
+
+    // Function to conduct network training
     let train learningRate (network:Network) (trainingSet:seq<float32[]*float32[]>) (lossFunction:float32[] -> float32[] -> float32) =
-        trainingSet                                 //tale the training set
-        |> Seq.map (fun (i,e) ->                    //map each element to:
-            network.LoadInput i                         //load the input (from the trainingset's input) into network
-            network.LoadExpectedOutput e                //load the expected output (from the trainingset's output) into network
-            let pred = feedForward network              //feed forward storing the resulting error into pred (for testing
-            backprop learningRate network               //apply back prop
-            lossFunction e pred                         //finally returning the resultant error of the loss function
+        trainingSet                                                                         // Take the training set
+        |> Seq.map (fun (i,e) ->                                                            // Map each element to:
+            network.LoadInput i                                                             // Load the input (from the trainingset's input) into network
+            network.LoadExpectedOutput e                                                    // Load the expected output (from the trainingset's output) into network
+            let pred = feedForward network                                                  // Feed forward storing the resulting error into pred (for testing
+            backprop learningRate network                                                   // Apply back prop
+            lossFunction e pred                                                             // Return the resultant error of the loss function
         )
-        |> Seq.average                              //get the average
+        |> Seq.average                                                                      // Get the average
+
+    // Function to calculate (and report) the error of the network being run
     let check printErrors (network:Network) (validationSet:seq<float32[]*float32[]>) (lossFunction:float32[] -> float32[] -> float32) =
-        validationSet                               //map the validation set
-        |> Seq.map (fun (i,e) ->                    //to the same thing as above
-            network.LoadInput i
-            network.LoadExpectedOutput e
-            let pred = feedForward network
-            let loss = lossFunction e pred          //⋁⋁⋁ Print the resulting error
-            if printErrors then
-                printfn "i:%A pred: %A e: %A loss: %f" i pred e loss
-            loss                                    //return the loss
+        validationSet                                                                       // Map the validation set ...
+        |> Seq.map (fun (i,e) ->                                                            // ... to the same thing as above
+            network.LoadInput i                                                             // Load the input
+            network.LoadExpectedOutput e                                                    // Load the expected output
+            let pred = feedForward network                                                  // Load the predictions from the feedforward neural network
+            let loss = lossFunction e pred                                                  // Calculate the loss
+            if printErrors then                                                             // If we want to print errors ...                                            
+                printfn "i:%A pred: %A e: %A loss: %f" i pred e loss                        // ... print the errors
+            loss                                                                            // Return the loss
         )
-        |> Seq.average
+        |> Seq.average                                                                      // Average and return
 
 
-    let testData() =
-        // XOR
-        [
-            [|0.f;0.f|],[|1.f;0.f|]
-            [|0.f;1.f|],[|0.f;1.f|]
-            [|1.f;0.f|],[|0.f;1.f|]
-            [|1.f;1.f|],[|1.f;0.f|]
-        ]
-
-    //remember that this is what the auto encoder is doing:
-    //x -> NN -> x'
-    //but since we're applying logistic, the outputs (at least) are always between 0 to 1. 
-    //therefore you need (on regression at least) to scale the datasets
-
-    //here we are creating some small-scale data to test on (2d boxes of points
-    let testData2() =
-        let rand = System.Random()
-        let rand_m4_4() = rand.NextDouble() * 8. - 4.
-        let region1 = (-3.5,-1.,3.,-0.25)
-        let region2 = (-1.25,0.5,0.25,-2.)
-        let region3 = (1.5,3.,2.5,0.)
-        let regions = [region1; region2; region3]
-        let insideRegion (x,y) (xl,xr,yt,yb) = xl <= x && x <= xr && yb <= y && y <= yt
-        let insideRegions (x,y) = regions |> Seq.exists (insideRegion (x,y))
-        let data =
-            Seq.initInfinite (fun _ -> rand_m4_4(), rand_m4_4() )
-            |> Seq.filter insideRegions
-            |> Seq.take 200
-            |> Seq.map (fun (x,y) -> float32 x, float32 y)
-            |> Seq.toArray
-
-        // remember we have to scale our data sets so that they fit into a region of zero to 1 so that the logistics based activation function can be used to decode the original values back
-        // to do this we will preprocess the input data using the logistics function
-
-        data
-        |> Seq.map (fun (x,y) -> let i = [|computeLogistic x; computeLogistic y|] in i, i)  //this line with i being the input and output is the only difference between an AE and a normal backprop NN
-        |> Seq.toArray
-        //|> Seq.map (fun (x,y) -> sprintf "%f\t%f" x.[0] x.[1])
-        //|> String.concat "\n"
-        //|> toClipboard
-
-    let testData3() =
-        let rand = System.Random()
-        let rand_m4_4() = rand.NextDouble() * 8. - 4.
-        let f x = 2.3*x + 0.4
-        let insideCurve (x,y) =
-            let y' = f x
-            if y = 0. then y = y'
-            else
-                abs((y-y')/y) < 0.01
-        let data =
-            Seq.initInfinite (fun _ -> rand_m4_4(), rand_m4_4() )
-            |> Seq.filter insideCurve
-            |> Seq.take 200
-            |> Seq.map (fun (x,y) -> float32 x, float32 y)
-            |> Seq.toArray
-
-        // remember we have to scale our data sets so that they fit into a region of zero to 1 so that the logistics based activation function can be used to decode the original values back
-        // to do this we will preprocess the input data using the logistics function
-
-        data
-        |> Seq.map (fun (x,y) -> let i = [|computeLogistic x; computeLogistic y|] in i, i, [|x;y|])  //this line with i being the input and output is the only difference between an AE and a normal backprop NN
-        |> Seq.toArray
-
+    // Function for mapping 2D spaces for testing (we wanted to plot some 2D representations earlier on in development)
     let copyTo2D (a:float32[,]) (b:float32[,]) =
-        for j = 0 to a.GetLength(0)-1 do
-            for i = 0 to a.GetLength(1)-1 do
-                b.[j,i] <- a.[j,i]
+        for j = 0 to a.GetLength(0)-1 do                                                    // Iterate
+            for i = 0 to a.GetLength(1)-1 do                                                // Iterate
+                b.[j,i] <- a.[j,i]                                                          // Copy
 
+
+    // STACKED AUTO-ENCODER FUNCTIONS
+    //---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- 
+
+    // Function to run a Level 1, 1 Auto-Encoder layer stacked auto-encoder
     let make1lvlSAE trainingCount learningRate inputLayerSize featureCount outputLayerSize trainingSetOriginal = 
-        let sw = System.Diagnostics.Stopwatch.StartNew()
-        let classifications = trainingSetOriginal |> Seq.map snd |> Seq.toArray
-        let trainingSet = trainingSetOriginal |> Seq.map fst |> Seq.map (fun x -> x, x) |> Seq.toArray
-        let lvl1 = Network.Create rand_uniform_1m_1 [|inputLayerSize;featureCount;inputLayerSize|]                              // Auto-encoder Level 1
-        let lvlo = Network.Create rand_uniform_1m_1 [|featureCount;outputLayerSize|]                                   // Auto-encoder Level 3
+        let sw = System.Diagnostics.Stopwatch.StartNew()                                                                // Start stopwatch for time diagnostics
+        let classifications = trainingSetOriginal |> Seq.map snd |> Seq.toArray                                         // Classifier for training data
+        let trainingSet = trainingSetOriginal |> Seq.map fst |> Seq.map (fun x -> x, x) |> Seq.toArray                  // Training set
+        let lvl1 = Network.Create rand_uniform_1m_1 [|inputLayerSize;featureCount;inputLayerSize|]                      // Auto-encoder first level
+        let lvlo = Network.Create rand_uniform_1m_1 [|featureCount;outputLayerSize|]                                    // Auto-encoder output level
 
         // Train the level 1 auto-encoder (1 auto-encoder layer)
-        printfn "Training Level 1"
-        for i = 0 to trainingCount do
-            let avgLoss = train learningRate lvl1 trainingSet distanceSquaredArray
-            if i%1000 = 0 then
+        printfn "Training Level 1 ..."                                                                                  // Print message
+        for i = 0 to trainingCount do                                                                                   // Iterate trainingCount times
+            let avgLoss = train learningRate lvl1 trainingSet distanceSquaredArray                                      // Train the first auto-encoder layer
+            if i%1000 = 0 then                                                                                          // Print updates every 1000 iterations
                 printfn "%d: %f" i avgLoss
 
-        let trainingSet' =                                                                     // Training set to feed into the next level
+        let trainingSet' =                                                                                              // Training set to feed into the next level
             trainingSet
-            |> Seq.mapi (fun n (i,_) ->                                                         // Map the values of the reduced set
-                let pred = feedForward lvl1                                                     // Predicted values of level 2
-                let r = Array.copy pred 
-                r,classifications.[n]
+            |> Seq.mapi (fun n (i,_) ->                                                                                 // Map the values of the reduced set
+                let pred = feedForward lvl1                                                                             // Predicted values of level 2
+                let r = Array.copy lvl1.featureLayer.nodes                                                              // Copy nodes
+                r,classifications.[n]                                                                                   // Return to training set
             )
 
-        printfn "Training Level Prediction"
-        for i = 0 to trainingCount do
-            let avgLoss = train learningRate lvlo trainingSet' distanceSquaredArray
-            if i%1000 = 0 then
+        // Predict the training level (1 auto-encoder layer)
+        printfn "Training Level Prediction"                                                                             // Print message
+        for i = 0 to trainingCount do                                                                                   // Iterate trainingCount times
+            let avgLoss = train learningRate lvlo trainingSet' distanceSquaredArray                                     // Train the output auto-encoder layer
+            if i%1000 = 0 then                                                                                          // Print updates every 1000 iterations
                 printfn "%d: %f" i avgLoss
 
+        // Connect the stacked auto-encoder
         let stackedAutoEncoder = 
-            let cm1 = lvl1.connections.[0]                                                      // Connection matrix for Level 1 (goes to lvl2)
-            let cmo = lvlo.connections.[0]                                                      // Connection matrix for Level O (goes to output)
-            let cmo = {cmo with inputLayer = cm1.outputLayer;}                                  // Connect 3's CM with 2's output layer
-            let network =                                                                       // Create the network
+            let cm1 = lvl1.connections.[0]                                                                              // Connection matrix for Level 1 (goes to lvl2)
+            let cmo = lvlo.connections.[0]                                                                              // Connection matrix for Level O (goes to output)
+            let cmo = {cmo with inputLayer = cm1.outputLayer;}                                                          // Connect 3's CM with 2's output layer
+            let network =                                                                                               // Create the network
                 {
-                    connections = [|cm1;cmo|]                                                   // Connect 1's CM, 2's CM, and 3's CM
-                    expectedOutputs = Array.zeroCreate cmo.outputLayer.Length                       // Create array of expected outputs
+                    connections = [|cm1;cmo|]                                                                           // Connect 1's CM, 2's CM, and 3's CM
+                    expectedOutputs = Array.zeroCreate cmo.outputLayer.Length                                           // Create array of expected outputs
                 }
-            network.expectedOutputs.[network.expectedOutputs.Length-1] <- 1.f
-            network
+            network.expectedOutputs.[network.expectedOutputs.Length-1] <- 1.f                                           // Set the bias nodes
+            network                                                                                                     // Return the network
 
-        printfn "Fine Turning SAE"
-        for i = 0 to trainingCount do
-            let avgLoss = train learningRate stackedAutoEncoder trainingSetOriginal distanceSquaredArray
-            if i%1000 = 0 then
-                printfn "%d: %f" i avgLoss
-        sw.Stop()
+        // Fine-tuning stage
+        printfn "Fine Turning SAE"                                                                                      // Print message
+        for i = 0 to trainingCount do                                                                                   // Iterate trainingCount times
+            let avgLoss = train learningRate stackedAutoEncoder trainingSetOriginal distanceSquaredArray                // Train the overall auto-encoder
+            if i%1000 = 0 then                                                                                          // Print updates every 1000 iterations
+                printfn "%d: %f" i avgLoss              
+        sw.Stop()                                                                                                       // Stop the stopwatch
         let elapsedTime = sw.Elapsed.TotalSeconds
         //printfn "ElapsedTime: %fs" elapsedTime
-        stackedAutoEncoder
+        stackedAutoEncoder                                                                                              // Return the stacked autoencoder
 
+    // Function to run a Level 2, 2 Auto-Encoder layer stacked auto-encoder
     let make2lvlSAE trainingCount learningRate inputLayerSize featureCount1 featureCount2 outputLayerSize trainingSetOriginal = 
-        let sw = System.Diagnostics.Stopwatch.StartNew()
-        let classifications = trainingSetOriginal |> Seq.map snd |> Seq.toArray
-        let trainingSet = trainingSetOriginal |> Seq.map fst |> Seq.map (fun x -> x, x) |> Seq.toArray
-        let lvl1 = Network.Create rand_uniform_1m_1 [|inputLayerSize;featureCount1;inputLayerSize|]                              // Auto-encoder Level 1
-        let lvl2 = Network.Create rand_uniform_1m_1 [|featureCount1;featureCount2;featureCount1|]                              // Auto-encoder Level 1
-        let lvlo = Network.Create rand_uniform_1m_1 [|featureCount2;outputLayerSize|]                                   // Auto-encoder Level 3
+        let sw = System.Diagnostics.Stopwatch.StartNew()                                                                // Start stopwatch for time diagnostics
+        let classifications = trainingSetOriginal |> Seq.map snd |> Seq.toArray                                         // Classifier for training data
+        let trainingSet = trainingSetOriginal |> Seq.map fst |> Seq.map (fun x -> x, x) |> Seq.toArray                  // Training set
+        let lvl1 = Network.Create rand_uniform_1m_1 [|inputLayerSize;featureCount1;inputLayerSize|]                     // Auto-encoder first level
+        let lvl2 = Network.Create rand_uniform_1m_1 [|featureCount1;featureCount2;featureCount1|]                       // Auto-encoder second level
+        let lvlo = Network.Create rand_uniform_1m_1 [|featureCount2;outputLayerSize|]                                   // Auto-encoder output level
 
         // Train the level 1 auto-encoder (1 auto-encoder layer)
-        printfn "Training Level 1"
-        for i = 0 to trainingCount do
-            let avgLoss = train learningRate lvl1 trainingSet distanceSquaredArray
-            if i%1000 = 0 then
+        printfn "Training Level 1"                                                                                      // Print message
+        for i = 0 to trainingCount do                                                                                   // Iterate trainingCount times
+            let avgLoss = train learningRate lvl1 trainingSet distanceSquaredArray                                      // Train the first auto-encoder layer
+            if i%1000 = 0 then                                                                                          // Print updates every 1000 iterations
                 printfn "%d: %f" i avgLoss
 
-        let trainingSet' =                                                                     // Training set to feed into the next level
+        let trainingSet' =                                                                                              // Training set to feed into the next level
             trainingSet
-            |> Seq.mapi (fun n (i,_) ->                                                         // Map the values of the reduced set
-                let pred = feedForward lvl1                                                     // Predicted values of level 2
-                let r = Array.copy pred 
+            |> Seq.mapi (fun n (i,_) ->                                                                                 // Map the values of the reduced set
+                let pred = feedForward lvl1                                                                             // Predicted values of level 2
+                let r = Array.copy lvl1.featureLayer.nodes 
                 r,r
             )
 
         // Train the level 2 auto-encoder (2 auto-encoder layer)
-        printfn "Training Level 2"
-        for i = 0 to trainingCount do
-            let avgLoss = train learningRate lvl2 trainingSet' distanceSquaredArray
-            if i%1000 = 0 then
+        printfn "Training Level 2"                                                                                      // Print message   
+        for i = 0 to trainingCount do                                                                                   // Iterate trainingCount times
+            let avgLoss = train learningRate lvl2 trainingSet' distanceSquaredArray                                     // Train the second auto-encoder layer
+            if i%1000 = 0 then                                                                                          // Print updates every 1000 iterations
                 printfn "%d: %f" i avgLoss
 
-        let trainingSet'' =                                                                     // Training set to feed into the next level
+        let trainingSet'' =                                                                                             // Training set to feed into the next level
             trainingSet'
-            |> Seq.mapi (fun n (i,_) ->                                                         // Map the values of the reduced set
-                let pred = feedForward lvl2                                                     // Predicted values of level 2
-                let r = Array.copy pred 
-                r,classifications.[n]
+            |> Seq.mapi (fun n (i,_) ->                                                                                 // Map the values of the reduced set
+                let pred = feedForward lvl2                                                                             // Predicted values of level 2
+                let r = Array.copy lvl2.featureLayer.nodes                                                              // Copy nodes
+                r,classifications.[n]                                                                                   // Return to training set
             )
 
-        printfn "Training Level Prediction"
-        for i = 0 to trainingCount do
-            let avgLoss = train learningRate lvlo trainingSet'' distanceSquaredArray
-            if i%1000 = 0 then
+        printfn "Training Level Prediction"                                                                             // Print message
+        for i = 0 to trainingCount do                                                                                   // Iterate trainingCount times
+            let avgLoss = train learningRate lvlo trainingSet'' distanceSquaredArray                                    // Train the output auto-encoder layer
+            if i%1000 = 0 then                                                                                          // Print updates every 1000 iterations
                 printfn "%d: %f" i avgLoss
 
         let stackedAutoEncoder = 
-            let cm1 = lvl1.connections.[0]                                                      // Connection matrix for Level 1 (goes to lvl2)
-            let cm2 = lvl2.connections.[0]                                                      // Connection matrix for Level 1 (goes to lvl2)
-            let cmo = lvlo.connections.[0]                                                      // Connection matrix for Level O (goes to output)
-            let cm2 = {cm2 with inputLayer = cm1.outputLayer;}                                  // Connect 3's CM with 2's output layer
-            let cmo = {cmo with inputLayer = cm2.outputLayer;}                                  // Connect 3's CM with 2's output layer
-            let network =                                                                       // Create the network
+            let cm1 = lvl1.connections.[0]                                                                              // Connection matrix for Level 1 (goes to lvl2)
+            let cm2 = lvl2.connections.[0]                                                                              // Connection matrix for Level 1 (goes to lvl2)
+            let cmo = lvlo.connections.[0]                                                                              // Connection matrix for Level O (goes to output)
+            let cm2 = {cm2 with inputLayer = cm1.outputLayer;}                                                          // Connect 3's CM with 2's output layer
+            let cmo = {cmo with inputLayer = cm2.outputLayer;}                                                          // Connect 3's CM with 2's output layer
+            let network =                                                                                               // Create the network
                 {
-                    connections = [|cm1;cm2;cmo|]                                                   // Connect 1's CM, 2's CM, and 3's CM
-                    expectedOutputs = Array.zeroCreate cmo.outputLayer.Length                       // Create array of expected outputs
+                    connections = [|cm1;cm2;cmo|]                                                                       // Connect 1's CM, 2's CM, and 3's CM
+                    expectedOutputs = Array.zeroCreate cmo.outputLayer.Length                                           // Create array of expected outputs
                 }
-            network.expectedOutputs.[network.expectedOutputs.Length-1] <- 1.f
-            network
+            network.expectedOutputs.[network.expectedOutputs.Length-1] <- 1.f                                           // Set the bias nodes
+            network                                                                                                     // Return the network
 
-        printfn "Fine Turning SAE"
-        for i = 0 to trainingCount do
-            let avgLoss = train learningRate stackedAutoEncoder trainingSetOriginal distanceSquaredArray
-            if i%1000 = 0 then
+        printfn "Fine Turning SAE"                                                                                      // Print message
+        for i = 0 to trainingCount do                                                                                   // Iterate trainingCount times
+            let avgLoss = train learningRate stackedAutoEncoder trainingSetOriginal distanceSquaredArray                // Train the overall auto-encoder
+            if i%1000 = 0 then                                                                                          // Print updates every 1000 iterations
                 printfn "%d: %f" i avgLoss
-        sw.Stop()
+        sw.Stop()                                                                                                       // Stop the stopwatch
         let elapsedTime = sw.Elapsed.TotalSeconds
         //printfn "ElapsedTime: %fs" elapsedTime
-        stackedAutoEncoder
+        stackedAutoEncoder                                                                                              // Return the stacked autoencoder
 
+    // Function to run a Level 3, 3 Auto-Encoder layer stacked auto-encoder    
     let make3lvlSAE trainingCount learningRate inputLayerSize featureCount1 featureCount2 featureCount3 outputLayerSize trainingSetOriginal = 
-        let sw = System.Diagnostics.Stopwatch.StartNew()
-        let classifications = trainingSetOriginal |> Seq.map snd |> Seq.toArray
-        let trainingSet = trainingSetOriginal |> Seq.map fst |> Seq.map (fun x -> x, x) |> Seq.toArray
-        let lvl1 = Network.Create rand_uniform_1m_1 [|inputLayerSize;featureCount1;inputLayerSize|]                              // Auto-encoder Level 1
-        let lvl2 = Network.Create rand_uniform_1m_1 [|featureCount1;featureCount2;featureCount1|]                              // Auto-encoder Level 1
-        let lvl3 = Network.Create rand_uniform_1m_1 [|featureCount2;featureCount3;featureCount2|]                              // Auto-encoder Level 1
-        let lvlo = Network.Create rand_uniform_1m_1 [|featureCount3;outputLayerSize|]                                   // Auto-encoder Level 3
+        let sw = System.Diagnostics.Stopwatch.StartNew()                                                                // Start stopwatch for time diagnostics
+        let classifications = trainingSetOriginal |> Seq.map snd |> Seq.toArray                                         // Classifier for training data
+        let trainingSet = trainingSetOriginal |> Seq.map fst |> Seq.map (fun x -> x, x) |> Seq.toArray                  // Training set
+        let lvl1 = Network.Create rand_uniform_1m_1 [|inputLayerSize;featureCount1;inputLayerSize|]                     // Auto-encoder first level
+        let lvl2 = Network.Create rand_uniform_1m_1 [|featureCount1;featureCount2;featureCount1|]                       // Auto-encoder second level
+        let lvl3 = Network.Create rand_uniform_1m_1 [|featureCount2;featureCount3;featureCount2|]                       // Auto-encoder third level
+        let lvlo = Network.Create rand_uniform_1m_1 [|featureCount3;outputLayerSize|]                                   // Auto-encoder output level
 
         // Train the level 1 auto-encoder (1 auto-encoder layer)
-        printfn "Training Level 1"
-        for i = 0 to trainingCount do
-            let avgLoss = train learningRate lvl1 trainingSet distanceSquaredArray
-            if i%1000 = 0 then
+        printfn "Training Level 1"                                                                                      // Print message
+        for i = 0 to trainingCount do                                                                                   // Iterate trainingCount times
+            let avgLoss = train learningRate lvl1 trainingSet distanceSquaredArray                                      // Train the first auto-encoder layer
+            if i%1000 = 0 then                                                                                          // Print updates every 1000 iterations
                 printfn "%d: %f" i avgLoss
 
-        let trainingSet' =                                                                     // Training set to feed into the next level
+        let trainingSet' =                                                                                              // Training set to feed into the next level
             trainingSet
-            |> Seq.mapi (fun n (i,_) ->                                                         // Map the values of the reduced set
-                let pred = feedForward lvl1                                                     // Predicted values of level 2
-                let r = Array.copy pred 
+            |> Seq.mapi (fun n (i,_) ->                                                                                 // Map the values of the reduced set
+                let pred = feedForward lvl1                                                                             // Predicted values of level 2
+                let r = Array.copy lvl1.featureLayer.nodes 
                 r,r
             )
 
         // Train the level 2 auto-encoder (2 auto-encoder layer)
-        printfn "Training Level 2"
-        for i = 0 to trainingCount do
-            let avgLoss = train learningRate lvl2 trainingSet' distanceSquaredArray
-            if i%1000 = 0 then
+        printfn "Training Level 2"                                                                                      // Print message
+        for i = 0 to trainingCount do                                                                                   // Iterate trainingCount times
+            let avgLoss = train learningRate lvl2 trainingSet' distanceSquaredArray                                     // Train the second auto-encoder layer
+            if i%1000 = 0 then                                                                                          // Print updates every 1000 iterations
                 printfn "%d: %f" i avgLoss
 
-        let trainingSet'' =                                                                     // Training set to feed into the next level
+        let trainingSet'' =                                                                                             // Training set to feed into the next level
             trainingSet'
-            |> Seq.mapi (fun n (i,_) ->                                                         // Map the values of the reduced set
-                let pred = feedForward lvl2                                                     // Predicted values of level 2
-                let r = Array.copy pred 
+            |> Seq.mapi (fun n (i,_) ->                                                                                 // Map the values of the reduced set
+                let pred = feedForward lvl2                                                                             // Predicted values of level 2
+                let r = Array.copy lvl2.featureLayer.nodes
                 r,r
             )
 
         // Train the level 3 auto-encoder (3 auto-encoder layer)
-        printfn "Training Level 3"
-        for i = 0 to trainingCount do
-            let avgLoss = train learningRate lvl3 trainingSet'' distanceSquaredArray
-            if i%1000 = 0 then
+        printfn "Training Level 3"                                                                                      // Print message
+        for i = 0 to trainingCount do                                                                                   // Iterate trainingCount times      
+            let avgLoss = train learningRate lvl3 trainingSet'' distanceSquaredArray                                    // Train the third auto-encoder layer
+            if i%1000 = 0 then                                                                                          // Print updates every 1000 iterations
                 printfn "%d: %f" i avgLoss
 
-        let trainingSet''' =                                                                     // Training set to feed into the next level
+        let trainingSet''' =                                                                                            // Training set to feed into the next level
             trainingSet''
-            |> Seq.mapi (fun n (i,_) ->                                                         // Map the values of the reduced set
-                let pred = feedForward lvl3                                                     // Predicted values of level 2
-                let r = Array.copy pred 
+            |> Seq.mapi (fun n (i,_) ->                                                                                 // Map the values of the reduced set
+                let pred = feedForward lvl3                                                                             // Predicted values of level 2
+                let r = Array.copy lvl3.featureLayer.nodes 
                 r,classifications.[n]
             )
 
-        printfn "Training Level Prediction"
-        for i = 0 to trainingCount do
-            let avgLoss = train learningRate lvlo trainingSet''' distanceSquaredArray
-            if i%1000 = 0 then
+        printfn "Training Level Prediction"                                                                             // Print message
+        for i = 0 to trainingCount do                                                                                   // Iterate trainingCount times
+            let avgLoss = train learningRate lvlo trainingSet''' distanceSquaredArray                                   // Train the output auto-encoder layer
+            if i%1000 = 0 then                                                                                          // Print updates every 1000 iterations
                 printfn "%d: %f" i avgLoss
 
         let stackedAutoEncoder = 
-            let cm1 = lvl1.connections.[0]                                                      // Connection matrix for Level 1 (goes to lvl2)
-            let cm2 = lvl2.connections.[0]                                                      // Connection matrix for Level 1 (goes to lvl2)
-            let cm3 = lvl3.connections.[0]                                                      // Connection matrix for Level 1 (goes to lvl2)
-            let cmo = lvlo.connections.[0]                                                      // Connection matrix for Level O (goes to output)
-            let cm2 = {cm2 with inputLayer = cm1.outputLayer;}                                  // Connect 3's CM with 2's output layer
-            let cm3 = {cm3 with inputLayer = cm2.outputLayer;}                                  // Connect 3's CM with 2's output layer
-            let cmo = {cmo with inputLayer = cm3.outputLayer;}                                  // Connect 3's CM with 2's output layer
-            let network =                                                                       // Create the network
+            let cm1 = lvl1.connections.[0]                                                                              // Connection matrix for Level 1 (goes to lvl2)
+            let cm2 = lvl2.connections.[0]                                                                              // Connection matrix for Level 1 (goes to lvl2)
+            let cm3 = lvl3.connections.[0]                                                                              // Connection matrix for Level 1 (goes to lvl2)
+            let cmo = lvlo.connections.[0]                                                                              // Connection matrix for Level O (goes to output)
+            let cm2 = {cm2 with inputLayer = cm1.outputLayer;}                                                          // Connect 3's CM with 2's output layer
+            let cm3 = {cm3 with inputLayer = cm2.outputLayer;}                                                          // Connect 3's CM with 2's output layer
+            let cmo = {cmo with inputLayer = cm3.outputLayer;}                                                          // Connect 3's CM with 2's output layer
+            let network =                                                                                               // Create the network
                 {
-                    connections = [|cm1;cm2;cm3;cmo|]                                                   // Connect 1's CM, 2's CM, and 3's CM
-                    expectedOutputs = Array.zeroCreate cmo.outputLayer.Length                       // Create array of expected outputs
+                    connections = [|cm1;cm2;cm3;cmo|]                                                                   // Connect 1's CM, 2's CM, and 3's CM
+                    expectedOutputs = Array.zeroCreate cmo.outputLayer.Length                                           // Create array of expected outputs
                 }
-            network.expectedOutputs.[network.expectedOutputs.Length-1] <- 1.f
-            network
+            network.expectedOutputs.[network.expectedOutputs.Length-1] <- 1.f                                           // Set the bias nodes
+            network                                                                                                     // Return the network
 
-        printfn "Fine Turning SAE"
-        for i = 0 to trainingCount do
-            let avgLoss = train learningRate stackedAutoEncoder trainingSetOriginal distanceSquaredArray
-            if i%1000 = 0 then
+        printfn "Fine Turning SAE"                                                                                      // Print message
+        for i = 0 to trainingCount do                                                                                   // Iterate trainingCount times
+            let avgLoss = train learningRate stackedAutoEncoder trainingSetOriginal distanceSquaredArray                // Train the overall auto-encoder 
+            if i%1000 = 0 then                                                                                          // Print updates every 1000 iterations
                 printfn "%d: %f" i avgLoss
         sw.Stop()
-        let elapsedTime = sw.Elapsed.TotalSeconds
+        let elapsedTime = sw.Elapsed.TotalSeconds                                                                       // Stop the stopwatch
         //printfn "ElapsedTime: %fs" elapsedTime
-        stackedAutoEncoder
+        stackedAutoEncoder                                                                                              // Return the stacked autoencoder
 
+
+// MAIN MODULE
+//---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- 
 
 module Main =
+
+    // Open Modules
     open Autoencoder
     open Datasets
     [<EntryPoint>]
+
+    // Main function
     let main argv =
         System.Environment.CurrentDirectory <- __SOURCE_DIRECTORY__
-        let dsmd1 = (fullDataset @"..\Data\abalone.data" (Some 0) None 2. true false) //filename classIndex regressionIndex pValue isCommaSeperated hasHeader
-        let dsmd2 = (fullDataset @"..\Data\car.data" (Some 6) None 2. true false)
-        let dsmd3 = (fullDataset @"..\Data\forestfires.csv" None (Some 12) 2. true true)
-        let dsmd4 = (fullDataset @"..\Data\machine.data" None (Some 9) 2. true false )
-        let dsmd5 = (fullDataset @"..\Data\segmentation.data" (Some 0) None 2. true true)
-        let dsmd6 = (fullDataset @"..\Data\winequality-red.csv" None (Some 9) 2. false true)
-        let dsmd7 = (fullDataset @"..\Data\winequality-white.csv" None (Some 11) 2. false true)
 
-        let testSAEWithFold (makeSAE:_ -> Network) dsmd =            
-            let sw = System.Diagnostics.Stopwatch.StartNew()
-            let folds = generateFolds dsmd
-            let mse =
+        // filename classIndex regressionIndex pValue isCommaSeperated hasHeader
+        let dsmd1 = (fullDataset @"..\Data\abalone.data" (Some 0) None 2. true false)                       // Abalone
+        let dsmd2 = (fullDataset @"..\Data\car.data" (Some 6) None 2. true false)                           // Car
+        let dsmd3 = (fullDataset @"..\Data\forestfires.csv" None (Some 12) 2. true true)                    // Forest Fires
+        let dsmd4 = (fullDataset @"..\Data\machine.data" None (Some 9) 2. true false )                      // Machine
+        let dsmd5 = (fullDataset @"..\Data\segmentation.data" (Some 0) None 2. true true)                   // Segmentation
+        let dsmd6 = (fullDataset @"..\Data\winequality-red.csv" None (Some 9) 2. false true)                // Wine Quality (Red)
+        let dsmd7 = (fullDataset @"..\Data\winequality-white.csv" None (Some 11) 2. false true)             // Wine Quality (White)
+
+        // Test the Stacked Auto-encoder
+        let testSAEWithFold msg (makeSAE:_ -> Network) dsmd =            
+            printfn "Processing SAE with %s" msg                                                            // Print message
+            let sw = System.Diagnostics.Stopwatch.StartNew()                                                // Start stopwatch
+            let folds = generateFolds dsmd                                                                  // Generate K-folds
+            let mse =                                                                                       // Calculate mean square error for each fold
                 folds
-                |> Seq.mapi (fun fold (trainingSet,validationSet) ->
+                |> Seq.mapi (fun fold (trainingSet,validationSet) ->                                        // Map folds to training set and validation set
                     async {
-                        let sae = makeSAE trainingSet
-                        let saeErr = check false sae validationSet distanceSquaredArray
-                        printfn "Fold [%d] error: %f" fold saeErr
-                        return saeErr
+                        let sae = makeSAE trainingSet                                                       // Make the SAE training set
+                        let saeErr = check false sae validationSet distanceSquaredArray                     // Check SAE validation
+                        printfn "Fold [%d] Error: %f" fold saeErr                                           // Print errors for fold
+                        return saeErr                                                                       // Return SAE error
                     }
                 )
-                |> Async.Parallel
+                |> Async.Parallel                                                                           // Parallelism for speed
                 |> Async.RunSynchronously
                 |> Seq.average
-            sw.Stop()
-            let elapsedTime = sw.Elapsed.TotalSeconds
-            printfn "ElapsedTime: %fs" elapsedTime
-            printfn "MSE: %f" mse
+            sw.Stop()                                                                                       // Stop the stopwatch
+            let elapsedTime = sw.Elapsed.TotalSeconds                                                       // Total time run    
+            printfn "ElapsedTime: %fs" elapsedTime                                                          // Print time run
+            printfn "MSE: %f" mse                                                                           // Print MSE
     
             
-
+        // Run through the 1, 2, and 3 auto-encoder layer configurations
         do
             dsmd1
-            |> testSAEWithFold (make1lvlSAE 2000 1.f 8 5 3)
+            |> testSAEWithFold (make1lvlSAE 2000 1.f 8 5 3)                     // 1 auto-encoder layer
             dsmd1
-            |> testSAEWithFold (make2lvlSAE 2000 1.f 8 5 4 3)
+            |> testSAEWithFold (make2lvlSAE 2000 1.f 8 5 4 3)                   // 2 auto-encoder layers
             dsmd1
-            |> testSAEWithFold (make3lvlSAE 2000 1.f 8 6 5 4 3)
+            |> testSAEWithFold (make3lvlSAE 2000 1.f 8 6 5 4 3)                 // 3 auto-encoder layers
         
         0
+
+
+//---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- 
+// END OF CODE
