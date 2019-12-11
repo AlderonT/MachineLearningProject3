@@ -106,77 +106,76 @@ module Autoencoder =
 
             // Static method to perform a customized Seq.map function
             static member Create (nodeValue:unit->float32) (sizes:int seq) =
-                let e = sizes.GetEnumerator()                                               // we are creating an enumerator enumerating over sizes
-                if e.MoveNext() |> not then                                     //if have a size<1 then we
-                    failwithf "need at least two sizes specified"               //fail
-                let inputLayer = Layer.Create e.Current                         //here we initiate a layer using our enumerator's current element
-                let rec loop inLayer (connections:ResizeArray<_>) =             //rec do:
-                    if e.MoveNext() |> not then connections.ToArray()           //if you can't move on, return the finished Array
-                    else                                                        //else
-                        let outLayer = Layer.Create e.Current                   //create the output layer
-                        let cm = {                                              //create an instance of the connection matrix
-                            inputLayer = inLayer
-                            outputLayer = outLayer
-                            // we subtract 1 from the length of the outLayer length to account for the bias entry that we DONT write to
-                            // both inLayer and output layers get an extra bias node that is already included
+                let e = sizes.GetEnumerator()                                               // We are creating an enumerator enumerating over sizes
+                if e.MoveNext() |> not then                                                 // If size < 1 ... 
+                    failwithf "ERROR: Need at least two sizes specified!"                   // ... fail
+                let inputLayer = Layer.Create e.Current                                     // Initiate a layer using our enumerator's current element
+                let rec loop inLayer (connections:ResizeArray<_>) =                         // Rec do:
+                    if e.MoveNext() |> not then connections.ToArray()                       // If you can't move on, return the finished Array
+                    else                                                                    // Else ...
+                        let outLayer = Layer.Create e.Current                               // ... create the output layer
+                        let cm = {                                                          // Create an instance of the connection matrix
+                            inputLayer = inLayer                                            // Assign input layer
+                            outputLayer = outLayer                                          // Assign output layer
                             
-                            //Our initial weights are determined here: the size of the weights matrix takes into account that hte output layer should not write over the bias node.
+                            // Our initial weights are determined here: the size of the weights matrix takes into account that hte output layer should not write over the bias node.
                             weights = Array2D.init (outLayer.Length-1) inLayer.Length (fun _ _ -> nodeValue())  
                         }
-                        connections.Add(cm)                                     //we insert the connection matrix into connections
-                        loop outLayer connections                               //now the next input layer is the current output layer
-                let connections = loop inputLayer (ResizeArray())               //get the value from this recursive call and stick it in connectsion
-                if connections.Length = 0 then                                  //if our thing is too small size < 2
-                    failwithf "need at least two sizes specified"               //fail
-                {                                                               //then we return our connections and our expected outputs in a Network object
+                        connections.Add(cm)                                                 // Insert the connection matrix into connections
+                        loop outLayer connections                                           // Now the next input layer is the current output layer
+                let connections = loop inputLayer (ResizeArray())                           // Get the value from this recursive call and stick it in connectsion
+                if connections.Length = 0 then                                              // If our thing is too small (size < 2) ....
+                    failwithf "ERROR: Need at least two sizes specified!"                   // ... fail
+                {                                                                           // Return our connections and our expected outputs in a Network object
                     connections = connections
                     expectedOutputs = Array.zeroCreate connections.[connections.Length-1].outputLayer.Length
                 }
-            member this.Save() =                                                                                        //this is a save fn here we are using some low-level stuff to write to memory as base 64 so we can copy-paste networks for testing
-                use ms = new System.IO.MemoryStream()                                                                   //memory stream
-                use cs = new System.IO.Compression.DeflateStream(ms,System.IO.Compression.CompressionLevel.Optimal)     //stream compressor
-                use bw = new System.IO.BinaryWriter(cs)                                                                 //and a binary writer
-                let sizes =                                                 //get the sizes of the input, hidden layers, and outputlayer
-                    seq {                                                   //as a seq
+
+            // Low-level save function to copy-paste networks for testing
+            member this.Save() =                                                                                       
+                use ms = new System.IO.MemoryStream()                                                                   // Memory stream
+                use cs = new System.IO.Compression.DeflateStream(ms,System.IO.Compression.CompressionLevel.Optimal)     // Stream compressor
+                use bw = new System.IO.BinaryWriter(cs)                                                                 // Binary writer
+                let sizes =                                                                                             // Get the sizes of the input, hidden layers, and outputlayer
+                    seq {                                                                                               // Save as seq ...
                         yield!                                                      
-                            this.connections                                // containing the connecctions
-                            |> Seq.map (fun cm -> cm.inputLayer.Length-1)   // we subtract one so that we get the original non-biased lengths for the layers
-                        yield this.outputLayer.Length-1                     // and containing our output layer without the bias layer
+                            this.connections                                                                            // ... containing the connecctions
+                            |> Seq.map (fun cm -> cm.inputLayer.Length-1)                                               // Subtract one to get the original non-biased lengths for the layers
+                        yield this.outputLayer.Length-1                                                                 // Containing our output layer without the bias layer
                     }
-                    |> Seq.toArray                                          //return as an array
-                // write the sizes out first
-                bw.Write(sizes.Length)
+                    |> Seq.toArray                                                                                      // Return as an array
+                
+                bw.Write(sizes.Length)                                                                                  // Write the sizes out first
                 sizes
                 |> Seq.iter (bw.Write)
-                this.connections                                            //here we are writing the connections in 1st to last row-major order to the memory streme (same direction as construction
+                this.connections                                                                                        // Writing the connections in 1st to last row-major order to the memory stream (same direction as construction)
                 |> Seq.iter (fun cm ->
-                    // now write out the elements
-                    Array2D.iter (fun x -> bw.Write(x:float32)) cm.weights
+                    Array2D.iter (fun x -> bw.Write(x:float32)) cm.weights                                              // Now write out the elements
                 )
-                bw.Flush()
-                bw.Close()
+                bw.Flush()                                                                                              // Flush out the binary writer
+                bw.Close()                                                                                              // Close the binary writer
                 let bytes = ms.ToArray()
-                System.Convert.ToBase64String bytes                         //return the memory stream as a string in base 64
+                System.Convert.ToBase64String bytes                                                                     // Return the memory stream as a string in base 64
 
-            static member Load(serialized:string) =                                                                     //Load undoes save by going backwards and producing a network
-                let bytes = System.Convert.FromBase64String serialized
-                use ms = new System.IO.MemoryStream(bytes)
-                use cs = new System.IO.Compression.DeflateStream(ms,System.IO.Compression.CompressionMode.Decompress)
-                use br = new System.IO.BinaryReader(cs)
-                // read size count
+            // Static method to load by going backwards and producing a network
+            static member Load(serialized:string) =                                                                     
+                let bytes = System.Convert.FromBase64String serialized                                                  // Convert to Base 64
+                use ms = new System.IO.MemoryStream(bytes)                                                              // New memory stream        
+                use cs = new System.IO.Compression.DeflateStream(ms,System.IO.Compression.CompressionMode.Decompress)   // New compression stream
+                use br = new System.IO.BinaryReader(cs)                                                                 // New binary writer
                 let cnt = br.ReadInt32()
-                let sizes = Array.init cnt (fun _ -> br.ReadInt32()) // read the sizes
-                let network = Network.Create (fun _ -> br.ReadSingle()) sizes
-                br.Close()
-                network
+                let sizes = Array.init cnt (fun _ -> br.ReadInt32())                                                    // Read the sizes
+                let network = Network.Create (fun _ -> br.ReadSingle()) sizes                                           // Create new network from loaded memory
+                br.Close()                                                                                              // Close the binary writer
+                network                                                                                                 // Return the network                                                                                
 
 
-
-    let dotProduct (x:float32[]) (M:float32[,]) (r:float32[]) =         //As the weights are already strucutured to handle the bias node in the output by ignoring it
+    // Function to calculate the dot product of x * M = r
+    let dotProduct (x:float32[]) (M:float32[,]) (r:float32[]) = 
         if x.Length < M.GetLength(1) || r.Length < M.GetLength(0) then
             failwithf "Can't dot x[%d] by M[%d,%d] to make r[%d] " x.Length (M.GetLength(0)) (M.GetLength(1)) r.Length
         let width,height = M.GetLength(1), M.GetLength(0)
-        for j = 0 to height-1 do // we don't propagate to the bias
+        for j = 0 to height-1 do                                                        // we don't propagate to the bias
             let mutable sum = 0.f
             for i = 0 to width-1 do
                 sum <- sum + x.[i]*M.[j,i]
@@ -406,7 +405,7 @@ module Autoencoder =
                 printfn "%d: %f" i avgLoss
         sw.Stop()
         let elapsedTime = sw.Elapsed.TotalSeconds
-        printfn "ElapsedTime: %fs" elapsedTime
+        //printfn "ElapsedTime: %fs" elapsedTime
         stackedAutoEncoder
 
     let make2lvlSAE trainingCount learningRate inputLayerSize featureCount1 featureCount2 outputLayerSize trainingSetOriginal = 
@@ -474,7 +473,7 @@ module Autoencoder =
                 printfn "%d: %f" i avgLoss
         sw.Stop()
         let elapsedTime = sw.Elapsed.TotalSeconds
-        printfn "ElapsedTime: %fs" elapsedTime
+        //printfn "ElapsedTime: %fs" elapsedTime
         stackedAutoEncoder
 
     let make3lvlSAE trainingCount learningRate inputLayerSize featureCount1 featureCount2 featureCount3 outputLayerSize trainingSetOriginal = 
@@ -560,7 +559,7 @@ module Autoencoder =
                 printfn "%d: %f" i avgLoss
         sw.Stop()
         let elapsedTime = sw.Elapsed.TotalSeconds
-        printfn "ElapsedTime: %fs" elapsedTime
+        //printfn "ElapsedTime: %fs" elapsedTime
         stackedAutoEncoder
 
 
@@ -579,16 +578,24 @@ module Main =
         let dsmd7 = (fullDataset @"..\Data\winequality-white.csv" None (Some 11) 2. false true)
 
         let testSAEWithFold (makeSAE:_ -> Network) dsmd =            
+            let sw = System.Diagnostics.Stopwatch.StartNew()
             let folds = generateFolds dsmd
             let mse =
                 folds
                 |> Seq.mapi (fun fold (trainingSet,validationSet) ->
-                    let sae = makeSAE trainingSet
-                    let saeErr = check sae validationSet distanceSquaredArray
-                    printfn "Fold [%d] error: %f" fold saeErr
-                    saeErr
+                    async {
+                        let sae = makeSAE trainingSet
+                        let saeErr = check false sae validationSet distanceSquaredArray
+                        printfn "Fold [%d] error: %f" fold saeErr
+                        return saeErr
+                    }
                 )
+                |> Async.Parallel
+                |> Async.RunSynchronously
                 |> Seq.average
+            sw.Stop()
+            let elapsedTime = sw.Elapsed.TotalSeconds
+            printfn "ElapsedTime: %fs" elapsedTime
             printfn "MSE: %f" mse
     
             
@@ -596,5 +603,9 @@ module Main =
         do
             dsmd1
             |> testSAEWithFold (make1lvlSAE 2000 1.f 8 5 3)
+            dsmd1
+            |> testSAEWithFold (make2lvlSAE 2000 1.f 8 5 4 3)
+            dsmd1
+            |> testSAEWithFold (make3lvlSAE 2000 1.f 8 6 5 4 3)
         
         0
