@@ -1,12 +1,29 @@
-﻿namespace SAE_NN
+﻿//---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- 
+//
+//  CSCI 447 - Machine Learning
+//  Assignment #4, Fall 2019
+//  Chris Major, Farshina Nazrul-Shimim, Tysen Radovich, Allen Simpson
+//
+//  Functions for the implementation of several population algorithms to train a feedforward neural network
+//
+//---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- 
+
+
+// NAMESPACE
+//---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- 
+namespace SAE_NN
 (*
 #load "C:/work/snippets/Clipboard.fsx"
 open Clipboard
 *)
 
+// Open modules from local directory
 open Types
 open Datasets
 
+
+// AUTOENCODER MODULE
+//---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- 
 module Autoencoder =
 
     let rand_uniform_1m_1 =
@@ -522,7 +539,7 @@ module Autoencoder =
 
 module Main =
     open Autoencoder
-    open DataSets
+    open Datasets
     [<EntryPoint>]
     let main argv =
         System.Environment.CurrentDirectory <- __SOURCE_DIRECTORY__
@@ -535,14 +552,13 @@ module Main =
         let dsmd7 = (fullDataset @"..\Data\winequality-white.csv" None (Some 11) 2. false true)
 
         let testSAEWithFold (makeSAE:_ -> Network) dsmd =            
-            let folds = getFolds dsmd
+            let folds = generateFolds dsmd
             let mse =
                 folds
                 |> Seq.mapi (fun fold (trainingSet,validationSet) ->
                     let sae = makeSAE trainingSet
                     let saeErr = check sae validationSet distanceSquaredArray
-                    saeErr
-                    printfn "Fold [%d] error: %f" saeErr
+                    printfn "Fold [%d] error: %f" fold saeErr
                 )
                 |> Seq.average
             printfn "MSE: %f" mse
@@ -553,5 +569,4 @@ module Main =
             dsmd1
             |> testSAEWithFold (make1lvlSAE 2000 1.f 8 5 3)
         
-       Autoencoder.test()
-       0
+        0
