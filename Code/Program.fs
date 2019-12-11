@@ -373,9 +373,9 @@ module Autoencoder =
     let make2lvlSAE trainingCount learningRate inputLayerSize featureCount1 featureCount2 outputLayerSize trainingSetOriginal = 
         let classifications = trainingSetOriginal |> Seq.map snd |> Seq.toArray
         let trainingSet = trainingSetOriginal |> Seq.map fst |> Seq.map (fun x -> x, x) |> Seq.toArray
-        let lvl1 = Network.Create rand_uniform_1m_1 [|inputLayerSize;featureCount;inputLayerSize|]                              // Auto-encoder Level 1
-        let lvl2 = Network.Create rand_uniform_1m_1 [|inputLayerSize;featureCount;inputLayerSize|]                              // Auto-encoder Level 1
-        let lvlo = Network.Create rand_uniform_1m_1 [|featureCount;outputLayerSize|]                                   // Auto-encoder Level 3
+        let lvl1 = Network.Create rand_uniform_1m_1 [|inputLayerSize;featureCount1;inputLayerSize|]                              // Auto-encoder Level 1
+        let lvl2 = Network.Create rand_uniform_1m_1 [|featureCount1;featureCount2;featureCount1|]                              // Auto-encoder Level 1
+        let lvlo = Network.Create rand_uniform_1m_1 [|featureCount2;outputLayerSize|]                                   // Auto-encoder Level 3
 
         // Train the level 1 auto-encoder (1 auto-encoder layer)
         for i = 0 to trainingCount do
@@ -388,21 +388,114 @@ module Autoencoder =
             |> Seq.mapi (fun n (i,_) ->                                                         // Map the values of the reduced set
                 let pred = feedForward lvl1                                                     // Predicted values of level 2
                 let r = Array.copy pred 
+                r,r
+            )
+
+        // Train the level 2 auto-encoder (2 auto-encoder layer)
+        for i = 0 to trainingCount do
+            let avgLoss = train learningRate lvl2 trainingSet' distanceSquaredArray
+            if i%1000 = 0 then
+                printfn "%d: %f" i avgLoss
+
+        let trainingSet'' =                                                                     // Training set to feed into the next level
+            trainingSet'
+            |> Seq.mapi (fun n (i,_) ->                                                         // Map the values of the reduced set
+                let pred = feedForward lvl2                                                     // Predicted values of level 2
+                let r = Array.copy pred 
                 r,classifications.[n]
             )
 
         for i = 0 to trainingCount do
-            let avgLoss = train learningRate lvlo trainingSet' distanceSquaredArray
+            let avgLoss = train learningRate lvlo trainingSet'' distanceSquaredArray
             if i%1000 = 0 then
                 printfn "%d: %f" i avgLoss
 
         let stackedAutoEncoder = 
             let cm1 = lvl1.connections.[0]                                                      // Connection matrix for Level 1 (goes to lvl2)
+            let cm2 = lvl2.connections.[0]                                                      // Connection matrix for Level 1 (goes to lvl2)
             let cmo = lvlo.connections.[0]                                                      // Connection matrix for Level O (goes to output)
-            let cmo = {cmo with inputLayer = cm1.outputLayer;}                                  // Connect 3's CM with 2's output layer
+            let cm2 = {cm2 with inputLayer = cm1.outputLayer;}                                  // Connect 3's CM with 2's output layer
+            let cmo = {cmo with inputLayer = cm2.outputLayer;}                                  // Connect 3's CM with 2's output layer
             let network =                                                                       // Create the network
                 {
-                    connections = [|cm1;cmo|]                                                   // Connect 1's CM, 2's CM, and 3's CM
+                    connections = [|cm1;cm2;cmo|]                                                   // Connect 1's CM, 2's CM, and 3's CM
+                    expectedOutputs = Array.zeroCreate cmo.outputLayer.Length                       // Create array of expected outputs
+                }
+            network.expectedOutputs.[network.expectedOutputs.Length-1] <- 1.f
+            network
+
+        for i = 0 to trainingCount do
+            let avgLoss = train learningRate stackedAutoEncoder trainingSetOriginal distanceSquaredArray
+            if i%1000 = 0 then
+                printfn "%d: %f" i avgLoss
+        stackedAutoEncoder
+
+    let make3lvlSAE trainingCount learningRate inputLayerSize featureCount1 featureCount2 featureCount3 outputLayerSize trainingSetOriginal = 
+        let classifications = trainingSetOriginal |> Seq.map snd |> Seq.toArray
+        let trainingSet = trainingSetOriginal |> Seq.map fst |> Seq.map (fun x -> x, x) |> Seq.toArray
+        let lvl1 = Network.Create rand_uniform_1m_1 [|inputLayerSize;featureCount1;inputLayerSize|]                              // Auto-encoder Level 1
+        let lvl2 = Network.Create rand_uniform_1m_1 [|featureCount1;featureCount2;featureCount1|]                              // Auto-encoder Level 1
+        let lvl3 = Network.Create rand_uniform_1m_1 [|featureCount2;featureCount3;featureCount2|]                              // Auto-encoder Level 1
+        let lvlo = Network.Create rand_uniform_1m_1 [|featureCount3;outputLayerSize|]                                   // Auto-encoder Level 3
+
+        // Train the level 1 auto-encoder (1 auto-encoder layer)
+        for i = 0 to trainingCount do
+            let avgLoss = train learningRate lvl1 trainingSet distanceSquaredArray
+            if i%1000 = 0 then
+                printfn "%d: %f" i avgLoss
+
+        let trainingSet' =                                                                     // Training set to feed into the next level
+            trainingSet
+            |> Seq.mapi (fun n (i,_) ->                                                         // Map the values of the reduced set
+                let pred = feedForward lvl1                                                     // Predicted values of level 2
+                let r = Array.copy pred 
+                r,r
+            )
+
+        // Train the level 2 auto-encoder (2 auto-encoder layer)
+        for i = 0 to trainingCount do
+            let avgLoss = train learningRate lvl2 trainingSet' distanceSquaredArray
+            if i%1000 = 0 then
+                printfn "%d: %f" i avgLoss
+
+        let trainingSet'' =                                                                     // Training set to feed into the next level
+            trainingSet'
+            |> Seq.mapi (fun n (i,_) ->                                                         // Map the values of the reduced set
+                let pred = feedForward lvl2                                                     // Predicted values of level 2
+                let r = Array.copy pred 
+                r,r
+            )
+
+        // Train the level 3 auto-encoder (3 auto-encoder layer)
+        for i = 0 to trainingCount do
+            let avgLoss = train learningRate lvl3 trainingSet'' distanceSquaredArray
+            if i%1000 = 0 then
+                printfn "%d: %f" i avgLoss
+
+        let trainingSet''' =                                                                     // Training set to feed into the next level
+            trainingSet''
+            |> Seq.mapi (fun n (i,_) ->                                                         // Map the values of the reduced set
+                let pred = feedForward lvl3                                                     // Predicted values of level 2
+                let r = Array.copy pred 
+                r,classifications.[n]
+            )
+
+        for i = 0 to trainingCount do
+            let avgLoss = train learningRate lvlo trainingSet''' distanceSquaredArray
+            if i%1000 = 0 then
+                printfn "%d: %f" i avgLoss
+
+        let stackedAutoEncoder = 
+            let cm1 = lvl1.connections.[0]                                                      // Connection matrix for Level 1 (goes to lvl2)
+            let cm2 = lvl2.connections.[0]                                                      // Connection matrix for Level 1 (goes to lvl2)
+            let cm3 = lvl3.connections.[0]                                                      // Connection matrix for Level 1 (goes to lvl2)
+            let cmo = lvlo.connections.[0]                                                      // Connection matrix for Level O (goes to output)
+            let cm2 = {cm2 with inputLayer = cm1.outputLayer;}                                  // Connect 3's CM with 2's output layer
+            let cm3 = {cm3 with inputLayer = cm2.outputLayer;}                                  // Connect 3's CM with 2's output layer
+            let cmo = {cmo with inputLayer = cm3.outputLayer;}                                  // Connect 3's CM with 2's output layer
+            let network =                                                                       // Create the network
+                {
+                    connections = [|cm1;cm2;cm3;cmo|]                                                   // Connect 1's CM, 2's CM, and 3's CM
                     expectedOutputs = Array.zeroCreate cmo.outputLayer.Length                       // Create array of expected outputs
                 }
             network.expectedOutputs.[network.expectedOutputs.Length-1] <- 1.f
